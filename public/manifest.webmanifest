@@ -1,7 +1,7 @@
 {
   "name": "Vela DEX",
   "short_name": "Vela DEX",
-  "description": "Vela DEX demo application for TON",
+  "description": "Vela DEX TON mainnet swaps powered by STON.fi",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0b1220",

@@ -10,12 +10,16 @@
     "test": "node --test"
   },
   "dependencies": {
+    "@ston-fi/api": "^0.32.0",
+    "@ston-fi/sdk": "^2.7.0",
+    "@ton/ton": "^16.3.0",
     "@tonconnect/ui-react": "^2.0.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.1.2",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "vite-plugin-node-polyfills": "^0.28.0"
   }
 }

@@ -72,32 +72,33 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .wallet-block { justify-content: flex-end; }
 .wallet-block > div { transform: scale(.9); transform-origin: right center; }
 
-.demo-banner {
+.network-banner {
   display: flex;
   align-items: center;
   gap: 10px;
   margin: 0 0 14px;
   padding: 11px 12px;
-  border: 1px solid rgba(251, 191, 36, .32);
+  border: 1px solid rgba(34, 197, 94, .32);
   border-radius: 13px;
-  background: rgba(120, 72, 8, .16);
-  color: #fde68a;
+  background: rgba(20, 92, 56, .16);
+  color: #bbf7d0;
   font-size: 12px;
   line-height: 1.45;
 }
-.demo-banner strong, .chip {
+.network-banner strong, .chip {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   border-radius: 999px;
   padding: 5px 8px;
-  background: rgba(251, 191, 36, .14);
-  color: #fcd34d;
+  background: rgba(34, 197, 94, .15);
+  color: #86efac;
   font-size: 9px;
   font-weight: 800;
   letter-spacing: .06em;
 }
+.network-note { margin: -5px 2px 12px; }
 .tabs {
   gap: 5px;
   margin-bottom: 12px;
@@ -131,6 +132,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   background: rgba(93, 169, 255, .13);
   color: var(--tg-theme-link-color);
 }
+.live-chip { background: rgba(34, 197, 94, .15) !important; color: #86efac !important; }
 .token-panel {
   padding: 13px;
   border: 1px solid var(--panel-border);
@@ -204,6 +206,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .notice button, .text-button, .close-button { border: 0; background: transparent; color: var(--tg-theme-link-color); }
 .notice button { align-self: flex-start; font-size: 18px; }
 .inline-warning { color: #fcd34d; font-size: 11px; line-height: 1.5; }
+.swap-intro { margin: -7px 0 15px; }
+.swap-options { display: flex; align-items: flex-end; gap: 12px; margin: 12px 0; }
+.swap-options .field-label { flex: 0 0 125px; margin: 0; }
+.swap-options select { min-height: 38px; padding: 8px 10px; border: 1px solid var(--panel-border); border-radius: 10px; background: var(--tg-theme-secondary-bg-color); color: var(--tg-theme-text-color); }
+.quote-status { margin-bottom: 8px; color: var(--tg-theme-hint-color); font-size: 10px; line-height: 1.4; }
 
 .field-label { display: grid; gap: 8px; margin: 12px 0; color: var(--tg-theme-hint-color); font-size: 12px; }
 .full-select, .full-input {
@@ -222,7 +229,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .mode-switch { display: flex; gap: 5px; margin: 14px 0; padding: 4px; border-radius: 12px; background: rgba(255,255,255,.035); }
 .required-row { margin: 13px 2px; }
 
-.wallet-summary, .transfer-card, .demo-balances, .live-section, .history-section {
+.wallet-summary, .transfer-card, .live-section, .history-section {
   margin-top: 14px;
   padding-top: 14px;
   border-top: 1px solid var(--panel-border);
@@ -233,12 +240,27 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .text-button { padding: 5px; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .subheading { justify-content: space-between; gap: 8px; margin-bottom: 11px; }
 .subheading h3, .transfer-card h3 { margin: 0; font-size: 14px; }
-.demo-balances .detail-row, .live-section .detail-row { margin: 10px 0; }
+.live-section .detail-row { margin: 10px 0; }
 .transfer-card { padding-top: 17px; }
 .transfer-card p { color: var(--tg-theme-hint-color); font-size: 11px; line-height: 1.55; }
 .history-item { display: grid; gap: 4px; padding: 11px 0; border-top: 1px solid rgba(148,163,184,.12); }
 .history-item strong { font-size: 12px; }
 .history-item span, .history-item small { color: var(--tg-theme-hint-color); font-size: 10px; overflow-wrap: anywhere; }
+.pool-live-item, .swap-status-item { display: grid; gap: 9px; padding: 13px 0; border-top: 1px solid rgba(148,163,184,.14); }
+.pool-live-item .subheading, .swap-status-item .swap-status-title { margin: 0; }
+.pool-live-item h3 { margin: 0; font-size: 13px; }
+.pool-live-item .detail-row { font-size: 11px; }
+.swap-history { margin-top: 18px; }
+.swap-status-title { justify-content: space-between; gap: 8px; }
+.swap-status-title strong { font-size: 12px; overflow-wrap: anywhere; }
+.swap-status-item p { margin: 0; color: var(--tg-theme-hint-color); font-size: 11px; line-height: 1.45; }
+.swap-status-item small { color: var(--tg-theme-hint-color); font-size: 10px; overflow-wrap: anywhere; }
+.status-pill { flex: 0 0 auto; border-radius: 999px; padding: 4px 7px; background: rgba(251,191,36,.14); color: #fcd34d; font-size: 9px; font-weight: 800; }
+.status-success { background: rgba(34,197,94,.15); color: #86efac; }
+.status-failed { background: rgba(248,113,113,.15); color: #fca5a5; }
+.status-unknown { background: rgba(148,163,184,.15); color: #cbd5e1; }
+.explorer-link { justify-self: start; text-decoration: none; }
+.cancel-review { display: block; margin: 10px auto 0; }
 .app-footer { padding: 18px 0 2px; color: var(--tg-theme-hint-color); text-align: center; font-size: 10px; }
 
 .modal-backdrop { position: fixed; z-index: 10; inset: 0; display: grid; place-items: center; padding: 18px; background: rgba(0,0,0,.68); }
@@ -251,6 +273,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .transfer-confirm span { color: var(--tg-theme-hint-color); font-size: 10px; }
 .transfer-confirm strong { font-size: 12px; overflow-wrap: anywhere; }
 .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+ 
 
 @media (max-width: 380px) {
   .page { padding-right: 11px; padding-left: 11px; }

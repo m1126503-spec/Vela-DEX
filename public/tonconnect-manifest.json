@@ -2,5 +2,5 @@
   "url": "https://your-domain.example.com",
   "name": "Vela DEX",
   "iconUrl": "https://your-domain.example.com/icon.svg",
-  "description": "Vela DEX demo application for TON"
+  "description": "Vela DEX TON mainnet swap application powered by STON.fi"
 }

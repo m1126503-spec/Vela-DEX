@@ -29,3 +29,14 @@ export async function fetchWalletJettons(address, signal) {
 export function fetchWalletEvents(address, signal) {
   return request(`${accountPath(address)}/events?limit=10`, signal);
 }
+
+export async function fetchTransactionByMessageHash(messageHash) {
+  const response = await fetch(`${API_BASE}/v2/blockchain/messages/${encodeURIComponent(messageHash)}/transaction`, {
+    headers: { Accept: 'application/json' }
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(`TonAPI transaction lookup failed: ${response.status} ${response.statusText || 'request failed'}`);
+  }
+  return response.json();
+}
