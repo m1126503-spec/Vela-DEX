@@ -15,5 +15,19 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173
+  },
+  build: {
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('@ton/') || id.includes('@tonconnect/')) return 'ton-vendor';
+          if (id.includes('@ston-fi/')) return 'ston-vendor';
+          if (id.includes('/react/') || id.includes('/react-dom/')) return 'react-vendor';
+          return undefined;
+        }
+      }
+    }
   }
 });
