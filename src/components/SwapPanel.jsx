@@ -8,6 +8,7 @@ import {
 import {
   buildSwapTransaction,
   createSwapQueryId,
+  formatExchangeRate,
   formatTokenAmount,
   getExternalMessageHash,
   getWalletTokenBalance,
@@ -19,6 +20,7 @@ import {
   SUPPORTED_TOKENS,
   toSlippagePercent
 } from '../lib/stonSwap';
+import { normalizeSwapHistory } from '../lib/swapHistory';
 
 const SWAP_HISTORY_KEY = 'vela-onchain-swaps-v1';
 const MAINNET_CHAIN = '-239';
@@ -28,30 +30,7 @@ const MAX_STATUS_WAIT_MS = 10 * 60 * 1000;
 function loadSwapHistory() {
   try {
     const saved = JSON.parse(localStorage.getItem(SWAP_HISTORY_KEY) || '[]');
-    if (!Array.isArray(saved)) return [];
-    return saved.filter((item) => item
-      && typeof item.id === 'string'
-      && typeof item.queryId === 'string'
-      && /^\d+$/.test(item.queryId)
-      && normalizeAddress(item.routerAddress)
-      && normalizeAddress(item.ownerAddress)
-      && Number.isFinite(item.createdAt)
-      && typeof item.fromSymbol === 'string'
-      && typeof item.toSymbol === 'string'
-      && typeof item.fromAmount === 'string'
-      && typeof item.expectedAmount === 'string'
-      && typeof item.minimumAmount === 'string'
-      && (!item.messageHash || /^[A-Fa-f0-9]{64}$/.test(item.messageHash)))
-      .slice(0, 20)
-      .map((item) => ({
-        ...item,
-        status: 'pending',
-        txHash: '',
-        walletTxHash: '',
-        exitCode: '',
-        error: '',
-        statusCheckError: ''
-      }));
+    return normalizeSwapHistory(saved);
   } catch {
     return [];
   }
@@ -137,6 +116,7 @@ export default function SwapPanel({ wallet, walletAddress, walletData, onTransac
     [amount, fromToken]
   );
   const balanceUnits = getWalletTokenBalance(walletData, fromToken);
+  const receiveBalanceUnits = getWalletTokenBalance(walletData, toToken);
   const tonBalanceUnits = getWalletTokenBalance(walletData, SUPPORTED_TOKENS[0]);
   const isMainnet = wallet?.account?.chain === MAINNET_CHAIN;
   const hasValidBalance = balanceUnits !== null
@@ -298,6 +278,18 @@ export default function SwapPanel({ wallet, walletAddress, walletData, onTransac
     }
   }
 
+  async function handlePrimaryAction() {
+    if (!wallet) {
+      try {
+        await tonConnectUI.openModal();
+      } catch (error) {
+        setNotice(`Не удалось открыть подключение кошелька: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      return;
+    }
+    await prepareReview();
+  }
+
   async function confirmSwap() {
     if (!review || sending || !walletAddress || !isMainnet) return;
     if (review.walletAddress !== walletAddress) {
@@ -401,6 +393,14 @@ export default function SwapPanel({ wallet, walletAddress, walletData, onTransac
   const displayedBalance = balanceUnits === null
     ? (walletData.loading ? 'Загрузка…' : 'Нет данных')
     : formatTokenAmount(balanceUnits, fromToken.decimals);
+  const displayedReceiveBalance = receiveBalanceUnits === null
+    ? (walletData.loading ? 'Загрузка…' : 'Нет данных')
+    : formatTokenAmount(receiveBalanceUnits, toToken.decimals);
+  const maxOfferUnits = balanceUnits === null
+    ? null
+    : fromToken.kind === 'Ton'
+      ? (BigInt(balanceUnits) > TON_GAS_BUFFER ? BigInt(balanceUnits) - TON_GAS_BUFFER : 0n).toString()
+      : balanceUnits;
   const networkMessage = wallet && !isMainnet
     ? 'Подключен testnet-кошелек. STON.fi API котирует mainnet; переключите кошелек на TON mainnet.'
     : '';
@@ -413,21 +413,44 @@ export default function SwapPanel({ wallet, walletAddress, walletData, onTransac
     && !reviewLoading
     && !sending
   );
+  const primaryLabel = !wallet
+    ? 'Подключить кошелек'
+    : reviewLoading
+      ? 'Готовим обмен…'
+      : sending
+        ? 'Ожидаем подтверждение кошелька…'
+        : !isMainnet
+          ? 'Переключитесь на mainnet'
+        : !amountUnits
+          ? 'Введите сумму'
+          : !hasValidBalance
+            ? 'Недостаточно средств'
+            : quoteLoading
+              ? 'Получаем котировку…'
+              : quote
+                ? 'Проверить обмен'
+                : 'Котировка недоступна';
 
   return (
-    <main className="card">
-      <div className="section-heading">
-        <div><small>STON.fi · TON mainnet</small><h2>Swap</h2></div>
-        <span className="chip live-chip">ON-CHAIN</span>
+    <main className="card swap-card">
+      <div className="swap-screen-heading">
+        <div>
+          <span className="swap-kicker"><span className="swap-live-dot" /> STON.fi · TON mainnet</span>
+          <h2>Обмен токенов</h2>
+          <p>Быстро, прозрачно и напрямую из вашего кошелька.</p>
+        </div>
+        <span className="chip live-chip">SWAP</span>
       </div>
-      <p className="fine-print swap-intro">Котировка и контрактный маршрут STON.fi. Средства перемещаются только после подписания транзакции в вашем кошельке.</p>
 
       {notice && <div className="notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Закрыть">×</button></div>}
 
-      <div className="token-panel">
+      <div className="swap-form">
+      <div className="token-panel swap-token-panel">
         <div className="panel-top">
-          <span>Отдаете</span>
-          <span>Баланс кошелька: {displayedBalance} {fromToken.symbol}</span>
+          <span className="token-panel-title">Вы отдаете</span>
+          <span className="token-balance">Баланс <strong>{displayedBalance}</strong>
+            {maxOfferUnits !== null && <button type="button" className="max-button" disabled={maxOfferUnits === '0'} onClick={() => { setAmount(formatTokenAmount(maxOfferUnits, fromToken.decimals).replace(/[^\d,]/g, '')); setReview(null); }}>MAX</button>}
+          </span>
         </div>
         <div className="amount-row">
           <input
@@ -439,40 +462,64 @@ export default function SwapPanel({ wallet, walletAddress, walletData, onTransac
             onChange={(event) => { setAmount(event.target.value); setReview(null); }}
             placeholder="0"
           />
-          <select aria-label="Токен для обмена" value={fromToken.symbol} onChange={(event) => changeToken('from', event.target.value)}>
-            {SUPPORTED_TOKENS.map((token) => <option key={token.symbol} value={token.symbol}>{token.symbol}</option>)}
-          </select>
+          <label className="token-select">
+            <span className="token-icon">{fromToken.symbol.slice(0, 1)}</span>
+            <select id="swap-input-token" aria-label="Токен для обмена" value={fromToken.symbol} onChange={(event) => changeToken('from', event.target.value)}>
+              {SUPPORTED_TOKENS.map((token) => <option key={token.symbol} value={token.symbol}>{token.symbol}</option>)}
+            </select>
+            <span className="token-chevron" aria-hidden="true">⌄</span>
+          </label>
         </div>
       </div>
 
-      <div className="swap-divider"><button className="icon-button" type="button" onClick={flipTokens} aria-label="Поменять токены местами">⇅</button></div>
+      <div className="swap-divider">
+        <span />
+        <button className="icon-button swap-flip-button" type="button" onClick={flipTokens} aria-label="Поменять токены местами">↕</button>
+        <span />
+      </div>
 
-      <div className="token-panel">
-        <div className="panel-top"><span>Ожидаемый выход</span><span>{toToken.name}</span></div>
+      <div className="token-panel swap-token-panel receive-panel">
+        <div className="panel-top">
+          <span className="token-panel-title">Вы получите</span>
+          <span className="token-balance">Баланс <strong>{displayedReceiveBalance}</strong></span>
+        </div>
         <div className="amount-row">
-          <div className="receive-value">
-            {quote ? formatTokenAmount(quote.askUnits, toToken.decimals) : quoteLoading ? 'Котировка…' : '—'}
+          <div className="receive-value" aria-live="polite">
+            {quote ? formatTokenAmount(quote.askUnits, toToken.decimals) : quoteLoading ? 'Расчет…' : '0'}
           </div>
-          <select aria-label="Токен для получения" value={toToken.symbol} onChange={(event) => changeToken('to', event.target.value)}>
-            {SUPPORTED_TOKENS.map((token) => <option key={token.symbol} value={token.symbol}>{token.symbol}</option>)}
-          </select>
+          <label className="token-select">
+            <span className="token-icon">{toToken.symbol.slice(0, 1)}</span>
+            <select aria-label="Токен для получения" value={toToken.symbol} onChange={(event) => changeToken('to', event.target.value)}>
+              {SUPPORTED_TOKENS.map((token) => <option key={token.symbol} value={token.symbol}>{token.symbol}</option>)}
+            </select>
+            <span className="token-chevron" aria-hidden="true">⌄</span>
+          </label>
         </div>
       </div>
 
-      <div className="swap-options">
-        <label className="field-label">Проскальзывание
-          <select value={slippage} onChange={(event) => { setSlippage(event.target.value); setReview(null); }}>
+      <div className="swap-market-info">
+        <div className="swap-rate">
+          <span>Курс</span>
+          <strong>{quote ? `1 ${fromToken.symbol} ≈ ${formatExchangeRate(quote, fromToken, toToken)} ${toToken.symbol}` : quoteLoading ? 'Обновляем…' : '—'}</strong>
+        </div>
+        <label className="swap-slippage">
+          <span>Проскальзывание</span>
+          <select aria-label="Допустимое проскальзывание" value={slippage} onChange={(event) => { setSlippage(event.target.value); setReview(null); }}>
             {SLIPPAGE_OPTIONS.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
           </select>
         </label>
-        <div className="quote-status">{quoteLoading ? 'Обновляем котировку…' : quote ? `Котировка обновлена ${formatDate(quote.receivedAt)}` : 'Введите сумму для получения котировки'}</div>
+      </div>
+
+      <div className="quote-status" aria-live="polite">
+        <span className={quoteError ? 'quote-status-dot quote-error-dot' : 'quote-status-dot'} />
+        {quoteLoading ? 'Обновляем котировку…' : quote ? `Котировка STON.fi · ${formatDate(quote.receivedAt)}` : quoteError ? 'Котировка временно недоступна' : 'Введите сумму для расчета'}
       </div>
 
       {quote && (
         <div className="details-box">
           <div className="detail-row"><span>Маршрут</span><strong>STON.fi Router v{quote.router.majorVersion}.{quote.router.minorVersion}</strong></div>
           <div className="detail-row"><span>Минимум к получению</span><strong>{formatTokenAmount(quote.minAskUnits, toToken.decimals)} {toToken.symbol}</strong></div>
-          <div className="detail-row"><span>Проскальзывание в транзакции</span><strong>{toSlippagePercent(quote.slippageTolerance)}</strong></div>
+          <div className="detail-row"><span>Допуск в транзакции</span><strong>{toSlippagePercent(quote.slippageTolerance)}</strong></div>
           {fee && <div className="detail-row"><span>Комиссия протокола (оценка)</span><strong>{fee}</strong></div>}
           {quote.gasParams?.estimatedGasConsumption && (
             <div className="detail-row"><span>Оценка сетевого газа</span><strong>{formatTokenAmount(quote.gasParams.estimatedGasConsumption, 9)} TON</strong></div>
@@ -491,10 +538,11 @@ export default function SwapPanel({ wallet, walletAddress, walletData, onTransac
       )}
       {amount && !amountUnits && <p className="inline-warning">Введите корректную сумму с не более чем {fromToken.decimals} знаками после запятой.</p>}
 
-      <button className="primary-button" type="button" disabled={!canPrepare} onClick={prepareReview}>
-        {reviewLoading ? 'Получаем маршрут и готовим payload…' : 'Проверить swap'}
+      <button className="primary-button swap-primary-button" type="button" disabled={wallet ? !canPrepare : reviewLoading || sending} onClick={handlePrimaryAction}>
+        {primaryLabel}
       </button>
-      <p className="fine-print centered">Подписание откроется в Tonkeeper, MyTonWallet или другом подключенном кошельке. Никогда не подтверждайте транзакцию, детали которой отличаются от этого экрана.</p>
+      <p className="fine-print centered swap-disclaimer">Средства перемещаются только после вашего подтверждения в кошельке.</p>
+      </div>
 
       <section className="history-section swap-history">
         <div className="subheading"><h3>On-chain swaps</h3><span className="chip live-chip">NETWORK</span></div>

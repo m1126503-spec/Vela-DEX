@@ -62,7 +62,8 @@ export function parseTokenAmount(amount, decimals) {
   if (typeof amount !== 'string' || !Number.isInteger(decimals) || decimals < 0 || decimals > 30) {
     return null;
   }
-  const match = amount.trim().match(/^(\d+)(?:\.(\d+))?$/);
+  const normalizedAmount = amount.trim().replace(',', '.');
+  const match = normalizedAmount.match(/^(\d+)(?:\.(\d+))?$/);
   if (!match || (match[2]?.length || 0) > decimals) return null;
   const whole = BigInt(match[1]);
   const fraction = BigInt((match[2] || '').padEnd(decimals, '0') || '0');
@@ -119,6 +120,35 @@ export function toSlippagePercent(fraction) {
   const value = Number(fraction) * 100;
   if (!Number.isFinite(value)) return '—';
   return `${value.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}%`;
+}
+
+export function formatExchangeRate(quote, fromToken, toToken) {
+  if (!quote
+    || !/^\d+$/.test(quote.offerUnits)
+    || !/^\d+$/.test(quote.askUnits)
+    || !Number.isInteger(fromToken?.decimals)
+    || !Number.isInteger(toToken?.decimals)
+    || fromToken.decimals < 0
+    || fromToken.decimals > 30
+    || toToken.decimals < 0
+    || toToken.decimals > 30) {
+    return '—';
+  }
+
+  const offerUnits = BigInt(quote.offerUnits);
+  const askUnits = BigInt(quote.askUnits);
+  if (offerUnits <= 0n || askUnits <= 0n) return '—';
+
+  const precision = 1_000_000n;
+  const numerator = askUnits * (10n ** BigInt(fromToken.decimals)) * precision;
+  const denominator = offerUnits * (10n ** BigInt(toToken.decimals));
+  const rate = numerator / denominator;
+  if (rate === 0n) return '<0,000001';
+
+  const whole = rate / precision;
+  const fraction = (rate % precision).toString().padStart(6, '0').replace(/0+$/, '');
+  const wholeText = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(whole);
+  return `${wholeText}${fraction ? `,${fraction}` : ''}`;
 }
 
 export async function simulateSwap({ fromToken, toToken, offerUnits, slippageTolerance }) {

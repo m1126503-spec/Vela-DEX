@@ -8,6 +8,7 @@ import {
 import { APP_NAME, PLATFORM_WALLET_ADDRESS, TELEGRAM_BOT_USERNAME } from './config';
 import SwapPanel from './components/SwapPanel';
 import PoolPanel from './components/PoolPanel';
+import FuturesPanel from './components/FuturesPanel';
 import { fetchWalletEvents, fetchWalletJettons, fetchWalletTonBalance } from './lib/tonApi';
 import { formatTokenAmount } from './lib/stonSwap';
 
@@ -143,15 +144,21 @@ export default function App() {
       </header>
 
       <div className="network-banner">
-        <strong>STON.FI · MAINNET</strong>
-        <span>Свапы исполняются on-chain через подключенный TON-кошелек. Каждая транзакция требует подписи.</span>
+        <strong>{activeTab === 'futures' ? 'PERPS · PREVIEW' : 'STON.FI · MAINNET'}</strong>
+        <span>{activeTab === 'futures'
+          ? 'Калькулятор фьючерсов не подключен к торговому протоколу; заявки не исполняются.'
+          : 'Свапы исполняются on-chain через подключенный TON-кошелек. Каждая транзакция требует подписи.'}</span>
       </div>
-      {!wallet && <div className="muted network-note">Подключите кошелек, чтобы увидеть реальные балансы и подписывать свапы.</div>}
-      {wallet && !isMainnet && <div className="inline-warning">Кошелек подключен к testnet. Свапы доступны только через STON.fi в TON mainnet.</div>}
+      {!wallet && <div className="muted network-note">{activeTab === 'futures'
+        ? 'Подключите mainnet-кошелек, чтобы видеть доступный баланс USDT.'
+        : 'Подключите кошелек, чтобы увидеть реальные балансы и подписывать свапы.'}</div>}
+      {wallet && !isMainnet && <div className="inline-warning">{activeTab === 'futures'
+        ? 'Подключен testnet-кошелек. Для отображения доступного USDT используется только mainnet.'
+        : 'Кошелек подключен к testnet. Свапы доступны только через STON.fi в TON mainnet.'}</div>}
       {notice && <div className="notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Закрыть">×</button></div>}
 
       <nav className="tabs" aria-label="Разделы">
-        {[['swap', 'Swap'], ['pools', 'Pools'], ['wallet', 'Wallet']].map(([key, label]) => (
+        {[['swap', 'Swap'], ['pools', 'Pools'], ['futures', 'Futures'], ['wallet', 'Wallet']].map(([key, label]) => (
           <button key={key} type="button" className={activeTab === key ? 'tab active' : 'tab'} onClick={() => setActiveTab(key)}>{label}</button>
         ))}
       </nav>
@@ -166,6 +173,14 @@ export default function App() {
       )}
 
       {activeTab === 'pools' && <PoolPanel />}
+
+      {activeTab === 'futures' && (
+        <FuturesPanel
+          wallet={wallet}
+          walletData={walletData}
+          onOpenSwap={() => setActiveTab('swap')}
+        />
+      )}
 
       {activeTab === 'wallet' && (
         <main className="card">
