@@ -15,6 +15,7 @@
     "@ton/ton": "^16.3.0",
     "@tonconnect/ui-react": "^2.0.5",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
