@@ -1,55 +1,18 @@
-import { useEffect, useState, Suspense, lazy } from 'react';
+// @ts-nocheck
+import { useEffect, useState } from 'react';
 import {
   TonConnectButton,
   useTonAddress,
   useTonConnectUI,
   useTonWallet
 } from '@tonconnect/ui-react';
-import { Analytics } from '@vercel/analytics/react';
 import { APP_NAME, PLATFORM_WALLET_ADDRESS, TELEGRAM_BOT_USERNAME } from './config';
+import SwapPanel from './components/SwapPanel';
+import PoolPanel from './components/PoolPanel';
+import FuturesPanel from './components/FuturesPanel';
 import { fetchWalletEvents, fetchWalletJettons, fetchWalletTonBalance } from './lib/tonApi';
 import { formatTokenAmount } from './lib/stonSwap';
-import { ErrorBoundary } from './components/ErrorBoundary';
-
-// Lazy-loaded panels
-const SwapPanel = lazy(() => import('./components/SwapPanel'));
-const PoolPanel = lazy(() => import('./components/PoolPanel'));
-const FuturesPanel = lazy(() => import('./components/FuturesPanel'));
-const WalletPanel = lazy(() => import('./components/WalletPanel'));
-
-// Preload the default tab
-const preloadSwap = () => import('./components/SwapPanel');
-
-function PanelFallback() {
-  return (
-    <div className="card" style={{ minHeight: 280, padding: 20 }}>
-      <div style={{ height: 28, width: '40%', background: 'var(--tg-theme-secondary-bg-color, #1e2937)', borderRadius: 6, marginBottom: 16 }} />
-      <div style={{ height: 18, width: '70%', background: 'var(--tg-theme-secondary-bg-color, #1e2937)', borderRadius: 4, marginBottom: 12 }} />
-      <div style={{ height: 48, background: 'var(--tg-theme-secondary-bg-color, #1e2937)', borderRadius: 8, marginBottom: 12 }} />
-      <div style={{ height: 48, background: 'var(--tg-theme-secondary-bg-color, #1e2937)', borderRadius: 8 }} />
-    </div>
-  );
-}
-
-function applyTelegramTheme(theme = {}) {
-  const defaults = {
-    bg_color: '#0b1220',
-    secondary_bg_color: '#101827',
-    text_color: '#f8fafc',
-    hint_color: '#94a3b8',
-    link_color: '#5da9ff',
-    button_color: '#3b82f6',
-    button_text_color: '#ffffff',
-    header_bg_color: '#0f172a',
-    accent_text_color: '#7dd3fc'
-  };
-  for (const [name, fallback] of Object.entries(defaults)) {
-    document.documentElement.style.setProperty(
-      `--tg-theme-${name.replaceAll('_', '-')}`,
-      theme[name] || fallback
-    );
-  }
-}
+import { SailMark } from './components/Marks';
 
 function parseTonAmount(value) {
   if (!/^(?:0|[1-9]\d*)(?:\.\d{1,9})?$/.test(value)) return null;
@@ -68,6 +31,7 @@ export default function App() {
   const wallet = useTonWallet();
   const walletAddress = useTonAddress();
   const [activeTab, setActiveTab] = useState('swap');
+  const [slide, setSlide] = useState(1);
   const [notice, setNotice] = useState('');
   const [walletData, setWalletData] = useState({
     loading: false, balance: null, jettons: null, events: null, errors: []
@@ -78,11 +42,6 @@ export default function App() {
   const [transferPending, setTransferPending] = useState(false);
   const telegram = typeof window !== 'undefined' ? window.Telegram?.WebApp : null;
   const isMainnet = wallet?.account?.chain === '-239';
-
-  // Preload default panel
-  useEffect(() => {
-    preloadSwap();
-  }, []);
 
   useEffect(() => {
     try {
@@ -95,12 +54,69 @@ export default function App() {
   useEffect(() => {
     if (!telegram) return;
     telegram.ready();
-    applyTelegramTheme(telegram.themeParams || {});
     telegram.expand?.();
-    const onThemeChanged = () => applyTelegramTheme(telegram.themeParams || {});
-    telegram.onEvent?.('themeChanged', onThemeChanged);
-    return () => telegram.offEvent?.('themeChanged', onThemeChanged);
   }, [telegram]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined;
+    let targetX = 0;
+    let targetY = 0;
+    let targetScroll = 0;
+    let x = 0;
+    let y = 0;
+    let scroll = 0;
+    let frame = 0;
+    let pointer = false;
+    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+    const paint = () => {
+      x += (targetX - x) * 0.12;
+      y += (targetY - y) * 0.12;
+      scroll += (targetScroll - scroll) * 0.14;
+      root.style.setProperty('--px', x.toFixed(4));
+      root.style.setProperty('--py', y.toFixed(4));
+      root.style.setProperty('--scroll', scroll.toFixed(2));
+      const settled = Math.abs(targetX - x) < 0.001
+        && Math.abs(targetY - y) < 0.001
+        && Math.abs(targetScroll - scroll) < 0.15;
+      frame = settled ? 0 : requestAnimationFrame(paint);
+    };
+    const queue = () => {
+      if (!frame) frame = requestAnimationFrame(paint);
+    };
+    const onPointer = (event) => {
+      pointer = true;
+      targetX = event.clientX / window.innerWidth - 0.5;
+      targetY = event.clientY / window.innerHeight - 0.5;
+      queue();
+    };
+    const onScroll = () => {
+      targetScroll = Math.min(window.scrollY, 640);
+      queue();
+    };
+    const onOrient = (event) => {
+      if (pointer || event.gamma == null) return;
+      targetX = clamp(event.gamma / 32, -0.65, 0.65);
+      targetY = clamp(((event.beta ?? 45) - 45) / 42, -0.65, 0.65);
+      queue();
+    };
+    const releasePointer = () => { pointer = false; };
+    window.addEventListener('pointermove', onPointer, { passive: true });
+    window.addEventListener('pointerdown', onPointer, { passive: true });
+    window.addEventListener('pointerup', releasePointer);
+    window.addEventListener('pointercancel', releasePointer);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('deviceorientation', onOrient);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      window.removeEventListener('pointermove', onPointer);
+      window.removeEventListener('pointerdown', onPointer);
+      window.removeEventListener('pointerup', releasePointer);
+      window.removeEventListener('pointercancel', releasePointer);
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('deviceorientation', onOrient);
+    };
+  }, []);
 
   useEffect(() => {
     if (!walletAddress) {
@@ -156,13 +172,38 @@ export default function App() {
   }
 
   const refreshWalletData = () => setWalletDataRefresh((value) => value + 1);
+  const tabOrder = { swap: 0, pools: 1, futures: 2, wallet: 3 };
+
+  function openTab(key) {
+    setSlide((tabOrder[key] ?? 0) >= (tabOrder[activeTab] ?? 0) ? 1 : -1);
+    setActiveTab(key);
+  }
 
   return (
-    <div className="page">
+    <div className="stage">
+      <div className="parallax-field" aria-hidden="true">
+        <span className="parallax-glow near" />
+        <span className="parallax-glow far" />
+        <SailMark className="parallax-sail" />
+      </div>
+      <aside className="editorial">
+        <div className="sail-depth sail-depth-hero">
+          <SailMark className="editorial-sail" />
+        </div>
+        <p className="editorial-kicker">TON mainnet</p>
+        <h2 className="editorial-title">Парус над обменом.</h2>
+        <p className="editorial-copy">Маршрут STON.fi. Подпись только в вашем кошельке. Три канонических актива: TON, USDT и NOT.</p>
+        <ul className="editorial-points">
+          <li><span>01</span>Свежая котировка перед подписью</li>
+          <li><span>02</span>Минимум на выходе виден заранее</li>
+          <li><span>03</span>Статус сверяется в сети</li>
+        </ul>
+      </aside>
+      <div className="page">
       <header className="topbar">
         <div className="brand">
-          <div className="brand-mark">V</div>
-          <div><small>Telegram Mini App · TON</small><h1>{APP_NAME}</h1></div>
+          <div className="brand-mark"><span className="sail-depth sail-depth-mark"><SailMark className="sail-svg" /></span></div>
+          <div className="brand-copy"><h1>Vela <em>DEX</em></h1><small>TON mainnet</small></div>
         </div>
         <div className="wallet-block"><TonConnectButton /></div>
       </header>
@@ -173,59 +214,114 @@ export default function App() {
           ? 'Калькулятор фьючерсов не подключен к торговому протоколу; заявки не исполняются.'
           : 'Свапы исполняются on-chain через подключенный TON-кошелек. Каждая транзакция требует подписи.'}</span>
       </div>
-      {!wallet && <div className="muted network-note">{activeTab === 'futures'
-        ? 'Подключите mainnet-кошелек, чтобы видеть доступный баланс USDT.'
-        : 'Подключите кошелек, чтобы увидеть реальные балансы и подписывать свапы.'}</div>}
       {wallet && !isMainnet && <div className="inline-warning">{activeTab === 'futures'
         ? 'Подключен testnet-кошелек. Для отображения доступного USDT используется только mainnet.'
         : 'Кошелек подключен к testnet. Свапы доступны только через STON.fi в TON mainnet.'}</div>}
       {notice && <div className="notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Закрыть">×</button></div>}
 
-      <nav className="tabs" aria-label="Разделы">
+      <nav className="tabs" data-tab={activeTab} aria-label="Разделы">
+        <span className="tab-thumb" aria-hidden="true" />
         {[['swap', 'Swap'], ['pools', 'Pools'], ['futures', 'Futures'], ['wallet', 'Wallet']].map(([key, label]) => (
-          <button key={key} type="button" className={activeTab === key ? 'tab active' : 'tab'} onClick={() => setActiveTab(key)}>{label}</button>
+          <button key={key} type="button" className={activeTab === key ? 'tab active' : 'tab'} onClick={() => openTab(key)}>{label}</button>
         ))}
       </nav>
 
-      <ErrorBoundary>
-        <Suspense fallback={<PanelFallback />}>
-          {activeTab === 'swap' && (
-            <SwapPanel
-              wallet={wallet}
-              walletAddress={walletAddress}
-              walletData={walletData}
-              onTransactionChange={refreshWalletData}
-            />
+      <div className="view" key={activeTab} style={{ '--slide': slide }}>
+      {activeTab === 'swap' && (
+        <SwapPanel
+          wallet={wallet}
+          walletAddress={walletAddress}
+          walletData={walletData}
+          onTransactionChange={refreshWalletData}
+        />
+      )}
+
+      {activeTab === 'pools' && <PoolPanel />}
+
+      {activeTab === 'futures' && (
+        <FuturesPanel
+          wallet={wallet}
+          walletData={walletData}
+          onOpenSwap={() => openTab('swap')}
+        />
+      )}
+
+      {activeTab === 'wallet' && (
+        <main className="card">
+          <div className="section-heading"><div><small>TonConnect · TON mainnet</small><h2>Wallet</h2></div></div>
+          <div className="wallet-summary">
+            <div className="wallet-title">
+              <strong>{wallet ? 'Кошелек подключен' : 'Кошелек не подключен'}</strong>
+              <span className={`chip ${wallet && isMainnet ? 'live-chip' : ''}`}>{wallet ? (isMainnet ? 'MAINNET' : 'TESTNET') : 'DISCONNECTED'}</span>
+            </div>
+            {walletAddress && (
+              <div className="address-value">
+                <span>{walletAddress}</span>
+                <button type="button" className="text-button" onClick={() => navigator.clipboard?.writeText(walletAddress).then(() => setNotice('Адрес скопирован.')).catch(() => setNotice('Не удалось скопировать адрес.'))}>Копировать</button>
+              </div>
+            )}
+            {!wallet && <p className="fine-print">Подключите кошелек кнопкой сверху. Балансы и история будут загружены напрямую из сети через TonAPI.</p>}
+          </div>
+
+          {wallet && (
+            <section className="live-section">
+              <div className="subheading">
+                <h3>Балансы из TON mainnet</h3>
+                <button className="text-button" type="button" disabled={walletData.loading} onClick={refreshWalletData}>Обновить</button>
+              </div>
+              {walletData.loading && <p className="muted">Загружаем балансы TonAPI…</p>}
+              {walletData.balance && (
+                <div className="detail-row">
+                  <span>TON · on-chain</span>
+                  <strong>{formatTokenAmount(walletData.balance.balance || '0', 9)} TON</strong>
+                </div>
+              )}
+              {walletData.jettons?.map((item) => {
+                const jetton = item.jetton || item;
+                const decimals = Number(jetton.decimals);
+                const balance = /^\d+$/.test(String(item.balance)) ? item.balance : '0';
+                return (
+                  <div className="detail-row" key={jetton.address || jetton.symbol}>
+                    <span>{jetton.symbol || 'Jetton'} · сеть</span>
+                    <strong>{Number.isInteger(decimals) && decimals >= 0 && decimals <= 30 ? formatTokenAmount(balance, decimals) : 'Недоступно'}</strong>
+                  </div>
+                );
+              })}
+              {walletData.errors.map((error) => <p className="inline-warning" key={error}>Не удалось загрузить {error}; фальшивый баланс не подставляется.</p>)}
+              {!walletData.loading && !walletData.balance && !walletData.errors.some((error) => error.startsWith('balance:')) && (
+                <p className="muted">Баланс TON не получен.</p>
+              )}
+            </section>
           )}
 
-          {activeTab === 'pools' && <PoolPanel />}
-
-          {activeTab === 'futures' && (
-            <FuturesPanel
-              wallet={wallet}
-              walletData={walletData}
-              onOpenSwap={() => setActiveTab('swap')}
-            />
+          {wallet && (
+            <section className="transfer-card">
+              <h3>Добровольный перевод разработчику</h3>
+              <p>Отдельный обычный TON-перевод на указанный адрес. Он не является комиссией за swap, не связан с успешностью обмена и не возвращается при отмене или ошибке свапа.</p>
+              <label className="field-label">Сумма перевода (TON)
+                <input className="full-input" inputMode="decimal" value={transferAmount} onChange={(event) => setTransferAmount(event.target.value)} placeholder="0.01" />
+              </label>
+              <button className="secondary-button" type="button" disabled={!isMainnet || !parseTonAmount(transferAmount)} onClick={() => setTransferDialogOpen(true)}>Проверить перевод</button>
+            </section>
           )}
 
-          {activeTab === 'wallet' && (
-            <WalletPanel
-              wallet={wallet}
-              walletAddress={walletAddress}
-              walletData={walletData}
-              isMainnet={isMainnet}
-              transferAmount={transferAmount}
-              setTransferAmount={setTransferAmount}
-              transferDialogOpen={transferDialogOpen}
-              setTransferDialogOpen={setTransferDialogOpen}
-              transferPending={transferPending}
-              onRefresh={refreshWalletData}
-              onSubmitTransfer={submitVoluntaryTransfer}
-              setNotice={setNotice}
-            />
+          {wallet && (
+            <section className="history-section">
+              <div className="subheading"><h3>История кошелька (сеть)</h3></div>
+              {walletData.loading && <p className="muted">Загрузка…</p>}
+              {walletData.events?.events?.length > 0 ? walletData.events.events.map((event) => (
+                <div className="history-item" key={event.event_id || event.lt}>
+                  <strong>{event.actions?.[0]?.type || 'Событие TON'}</strong>
+                  <span>{event.timestamp ? new Date(event.timestamp).toLocaleString('ru-RU') : 'Время неизвестно'}</span>
+                  <small>{event.event_id || event.lt || 'ID не предоставлен TonAPI'}</small>
+                </div>
+              )) : (!walletData.loading && walletData.events && <p className="muted">Событий не найдено.</p>)}
+              {walletData.errors.some((error) => error.startsWith('events:')) && <p className="muted">Сетевая история временно недоступна.</p>}
+            </section>
           )}
-        </Suspense>
-      </ErrorBoundary>
+        </main>
+      )}
+      </div>
 
       {transferDialogOpen && (
         <div className="modal-backdrop" role="presentation">
@@ -247,10 +343,10 @@ export default function App() {
       )}
 
       <footer className="app-footer">
-        Vela DEX · STON.fi · TON mainnet ·{' '}
+        {APP_NAME} · STON.fi · TON mainnet ·{' '}
         <a href={`https://t.me/${TELEGRAM_BOT_USERNAME.replace(/^@/, '')}`} target="_blank" rel="noreferrer">Telegram</a>
       </footer>
-      <Analytics />
+      </div>
     </div>
   );
 }

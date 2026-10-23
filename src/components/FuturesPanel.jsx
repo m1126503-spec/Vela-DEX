@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useMemo, useState } from 'react';
 import { useTonConnectUI } from '@tonconnect/ui-react';
 import { formatTokenAmount, getWalletTokenBalance, SUPPORTED_TOKENS } from '../lib/stonSwap';
@@ -67,7 +68,7 @@ export default function FuturesPanel({ wallet, walletData, onOpenSwap }) {
   return (
     <main className="card futures-card">
       <div className="section-heading">
-        <div><small>Расчет позиции · без исполнения</small><h2>Futures</h2></div>
+        <div><small>Калькулятор · без ордеров</small><h2>Futures</h2></div>
         <span className="chip futures-preview-chip">PREVIEW</span>
       </div>
 
@@ -101,6 +102,7 @@ export default function FuturesPanel({ wallet, walletData, onOpenSwap }) {
         <span>Кредитное плечо</span>
         <strong>{leverage}x</strong>
       </div>
+      <div className="risk-meter" aria-hidden="true"><span style={{ '--fill': `${(leverage / 50) * 100}%` }} /></div>
       <input
         className="leverage-slider"
         type="range"

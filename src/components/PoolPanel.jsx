@@ -1,5 +1,7 @@
+// @ts-nocheck
 import { useEffect, useState } from 'react';
 import { formatTokenAmount, lookupLivePools, normalizeAddress, SUPPORTED_TOKENS } from '../lib/stonSwap';
+import { TokenMark } from './Marks';
 
 const PAIRS = [
   [SUPPORTED_TOKENS[0], SUPPORTED_TOKENS[1]],
@@ -46,7 +48,7 @@ export default function PoolPanel() {
   return (
     <main className="card">
       <div className="section-heading">
-        <div><small>Публичные данные протокола</small><h2>Pools</h2></div>
+        <div><small>STON.fi · только чтение</small><h2>Pools</h2></div>
         <span className="chip live-chip">STON.FI</span>
       </div>
       <p className="fine-print">Реальные пулы TON mainnet, загруженные из STON.fi API. Добавление и вывод ликвидности в этом интерфейсе не поддерживаются.</p>
@@ -62,16 +64,22 @@ export default function PoolPanel() {
         return (
           <article className="pool-live-item" key={`${pool.address}-${pool.routerAddress}`}>
             <div className="subheading">
-              <h3>{token0.symbol} / {token1.symbol}</h3>
+              <div className="pool-pair">
+                <span className="pair-mark"><TokenMark symbol={token0.symbol} /></span>
+                <span className="pair-mark"><TokenMark symbol={token1.symbol} /></span>
+                <h3>{token0.symbol} / {token1.symbol}</h3>
+              </div>
               <span className="chip live-chip">ON-CHAIN</span>
             </div>
-            <div className="detail-row">
-              <span>Резерв {token0.symbol}</span>
-              <strong>{formatTokenAmount(pool.reserve0, token0.decimals)}</strong>
-            </div>
-            <div className="detail-row">
-              <span>Резерв {token1.symbol}</span>
-              <strong>{formatTokenAmount(pool.reserve1, token1.decimals)}</strong>
+            <div className="pool-reserves">
+              <div>
+                <span>Резерв {token0.symbol}</span>
+                <strong>{formatTokenAmount(pool.reserve0, token0.decimals)}</strong>
+              </div>
+              <div>
+                <span>Резерв {token1.symbol}</span>
+                <strong>{formatTokenAmount(pool.reserve1, token1.decimals)}</strong>
+              </div>
             </div>
             {Number.isFinite(lpFee) && <div className="detail-row"><span>Комиссия пула</span><strong>{(lpFee / 100).toLocaleString('ru-RU', { maximumFractionDigits: 3 })}%</strong></div>}
             {Number.isFinite(tvl) && <div className="detail-row"><span>TVL (оценка API)</span><strong>${tvl.toLocaleString('ru-RU', { maximumFractionDigits: 0 })}</strong></div>}
