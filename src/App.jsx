@@ -5,6 +5,7 @@ import {
   useTonConnectUI,
   useTonWallet
 } from '@tonconnect/ui-react';
+import { Analytics } from '@vercel/analytics/react';
 import { APP_NAME, PLATFORM_WALLET_ADDRESS, TELEGRAM_BOT_USERNAME } from './config';
 import SwapPanel from './components/SwapPanel';
 import PoolPanel from './components/PoolPanel';
@@ -281,6 +282,7 @@ export default function App() {
         Vela DEX · STON.fi · TON mainnet ·{' '}
         <a href={`https://t.me/${TELEGRAM_BOT_USERNAME.replace(/^@/, '')}`} target="_blank" rel="noreferrer">Telegram</a>
       </footer>
+      <Analytics />
     </div>
   );
 }
