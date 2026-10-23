@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense, lazy } from 'react';
 import {
   TonConnectButton,
   useTonAddress,
@@ -7,11 +7,21 @@ import {
 } from '@tonconnect/ui-react';
 import { Analytics } from '@vercel/analytics/react';
 import { APP_NAME, PLATFORM_WALLET_ADDRESS, TELEGRAM_BOT_USERNAME } from './config';
-import SwapPanel from './components/SwapPanel';
-import PoolPanel from './components/PoolPanel';
-import FuturesPanel from './components/FuturesPanel';
 import { fetchWalletEvents, fetchWalletJettons, fetchWalletTonBalance } from './lib/tonApi';
 import { formatTokenAmount } from './lib/stonSwap';
+
+// Lazy-loaded panels
+const SwapPanel = lazy(() => import('./components/SwapPanel'));
+const PoolPanel = lazy(() => import('./components/PoolPanel'));
+const FuturesPanel = lazy(() => import('./components/FuturesPanel'));
+
+function PanelFallback() {
+  return (
+    <div className="card" style={{ minHeight: 220, display: 'grid', placeItems: 'center' }}>
+      <p className="muted">Загрузка…</p>
+    </div>
+  );
+}
 
 function applyTelegramTheme(theme = {}) {
   const defaults = {
@@ -164,24 +174,26 @@ export default function App() {
         ))}
       </nav>
 
-      {activeTab === 'swap' && (
-        <SwapPanel
-          wallet={wallet}
-          walletAddress={walletAddress}
-          walletData={walletData}
-          onTransactionChange={refreshWalletData}
-        />
-      )}
+      <Suspense fallback={<PanelFallback />}>
+        {activeTab === 'swap' && (
+          <SwapPanel
+            wallet={wallet}
+            walletAddress={walletAddress}
+            walletData={walletData}
+            onTransactionChange={refreshWalletData}
+          />
+        )}
 
-      {activeTab === 'pools' && <PoolPanel />}
+        {activeTab === 'pools' && <PoolPanel />}
 
-      {activeTab === 'futures' && (
-        <FuturesPanel
-          wallet={wallet}
-          walletData={walletData}
-          onOpenSwap={() => setActiveTab('swap')}
-        />
-      )}
+        {activeTab === 'futures' && (
+          <FuturesPanel
+            wallet={wallet}
+            walletData={walletData}
+            onOpenSwap={() => setActiveTab('swap')}
+          />
+        )}
+      </Suspense>
 
       {activeTab === 'wallet' && (
         <main className="card">
