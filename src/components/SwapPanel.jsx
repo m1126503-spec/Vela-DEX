@@ -460,10 +460,11 @@ export default function SwapPanel({ wallet, walletAddress, walletData, onTransac
     <main className="card swap-card">
       <div className="swap-screen-heading">
         <div>
-          <span className="swap-kicker"><span className="swap-live-dot" /> STON.fi</span>
-          <h2>Обмен</h2>
+          <span className="swap-kicker"><span className="swap-live-dot" /> STON.FI · TON MAINNET</span>
+          <h2>Обмен токенов</h2>
+          <p>Быстро, прозрачно и напрямую из вашего кошелька.</p>
         </div>
-        <span className="chip live-chip">MAINNET</span>
+        <span className="chip swap-chip">SWAP</span>
       </div>
 
       {notice && <div className="notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Закрыть">×</button></div>}
@@ -484,7 +485,7 @@ export default function SwapPanel({ wallet, walletAddress, walletData, onTransac
             autoComplete="off"
             value={amount}
             onChange={(event) => { setAmount(event.target.value); setReview(null); }}
-            placeholder="0,00"
+            placeholder="0"
           />
           <label className="token-select">
             <span className="token-icon" key={fromToken.symbol}><TokenMark symbol={fromToken.symbol} /></span>
@@ -509,7 +510,7 @@ export default function SwapPanel({ wallet, walletAddress, walletData, onTransac
         </div>
         <div className="amount-row">
           <div className={quoteLoading ? 'receive-value is-loading' : 'receive-value'} aria-live="polite">
-            {quote ? formatTokenAmount(quote.askUnits, toToken.decimals) : quoteLoading ? 'Расчет…' : '0,00'}
+            {quote ? formatTokenAmount(quote.askUnits, toToken.decimals) : quoteLoading ? 'Расчет…' : '0'}
           </div>
           <label className="token-select">
             <span className="token-icon" key={toToken.symbol}><TokenMark symbol={toToken.symbol} /></span>
