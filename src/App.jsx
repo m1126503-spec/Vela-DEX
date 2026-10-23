@@ -9,16 +9,24 @@ import { Analytics } from '@vercel/analytics/react';
 import { APP_NAME, PLATFORM_WALLET_ADDRESS, TELEGRAM_BOT_USERNAME } from './config';
 import { fetchWalletEvents, fetchWalletJettons, fetchWalletTonBalance } from './lib/tonApi';
 import { formatTokenAmount } from './lib/stonSwap';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Lazy-loaded panels
 const SwapPanel = lazy(() => import('./components/SwapPanel'));
 const PoolPanel = lazy(() => import('./components/PoolPanel'));
 const FuturesPanel = lazy(() => import('./components/FuturesPanel'));
+const WalletPanel = lazy(() => import('./components/WalletPanel'));
+
+// Preload the default tab
+const preloadSwap = () => import('./components/SwapPanel');
 
 function PanelFallback() {
   return (
-    <div className="card" style={{ minHeight: 220, display: 'grid', placeItems: 'center' }}>
-      <p className="muted">Загрузка…</p>
+    <div className="card" style={{ minHeight: 280, padding: 20 }}>
+      <div style={{ height: 28, width: '40%', background: 'var(--tg-theme-secondary-bg-color, #1e2937)', borderRadius: 6, marginBottom: 16 }} />
+      <div style={{ height: 18, width: '70%', background: 'var(--tg-theme-secondary-bg-color, #1e2937)', borderRadius: 4, marginBottom: 12 }} />
+      <div style={{ height: 48, background: 'var(--tg-theme-secondary-bg-color, #1e2937)', borderRadius: 8, marginBottom: 12 }} />
+      <div style={{ height: 48, background: 'var(--tg-theme-secondary-bg-color, #1e2937)', borderRadius: 8 }} />
     </div>
   );
 }
@@ -70,6 +78,11 @@ export default function App() {
   const [transferPending, setTransferPending] = useState(false);
   const telegram = typeof window !== 'undefined' ? window.Telegram?.WebApp : null;
   const isMainnet = wallet?.account?.chain === '-239';
+
+  // Preload default panel
+  useEffect(() => {
+    preloadSwap();
+  }, []);
 
   useEffect(() => {
     try {
@@ -174,102 +187,45 @@ export default function App() {
         ))}
       </nav>
 
-      <Suspense fallback={<PanelFallback />}>
-        {activeTab === 'swap' && (
-          <SwapPanel
-            wallet={wallet}
-            walletAddress={walletAddress}
-            walletData={walletData}
-            onTransactionChange={refreshWalletData}
-          />
-        )}
-
-        {activeTab === 'pools' && <PoolPanel />}
-
-        {activeTab === 'futures' && (
-          <FuturesPanel
-            wallet={wallet}
-            walletData={walletData}
-            onOpenSwap={() => setActiveTab('swap')}
-          />
-        )}
-      </Suspense>
-
-      {activeTab === 'wallet' && (
-        <main className="card">
-          <div className="section-heading"><div><small>TonConnect · TON mainnet</small><h2>Wallet</h2></div></div>
-          <div className="wallet-summary">
-            <div className="wallet-title">
-              <strong>{wallet ? 'Кошелек подключен' : 'Кошелек не подключен'}</strong>
-              <span className={`chip ${wallet && isMainnet ? 'live-chip' : ''}`}>{wallet ? (isMainnet ? 'MAINNET' : 'TESTNET') : 'DISCONNECTED'}</span>
-            </div>
-            {walletAddress && (
-              <div className="address-value">
-                <span>{walletAddress}</span>
-                <button type="button" className="text-button" onClick={() => navigator.clipboard?.writeText(walletAddress).then(() => setNotice('Адрес скопирован.')).catch(() => setNotice('Не удалось скопировать адрес.'))}>Копировать</button>
-              </div>
-            )}
-            {!wallet && <p className="fine-print">Подключите кошелек кнопкой сверху. Балансы и история будут загружены напрямую из сети через TonAPI.</p>}
-          </div>
-
-          {wallet && (
-            <section className="live-section">
-              <div className="subheading">
-                <h3>Балансы из TON mainnet</h3>
-                <button className="text-button" type="button" disabled={walletData.loading} onClick={refreshWalletData}>Обновить</button>
-              </div>
-              {walletData.loading && <p className="muted">Загружаем балансы TonAPI…</p>}
-              {walletData.balance && (
-                <div className="detail-row">
-                  <span>TON · on-chain</span>
-                  <strong>{formatTokenAmount(walletData.balance.balance || '0', 9)} TON</strong>
-                </div>
-              )}
-              {walletData.jettons?.map((item) => {
-                const jetton = item.jetton || item;
-                const decimals = Number(jetton.decimals);
-                const balance = /^\d+$/.test(String(item.balance)) ? item.balance : '0';
-                return (
-                  <div className="detail-row" key={jetton.address || jetton.symbol}>
-                    <span>{jetton.symbol || 'Jetton'} · сеть</span>
-                    <strong>{Number.isInteger(decimals) && decimals >= 0 && decimals <= 30 ? formatTokenAmount(balance, decimals) : 'Недоступно'}</strong>
-                  </div>
-                );
-              })}
-              {walletData.errors.map((error) => <p className="inline-warning" key={error}>Не удалось загрузить {error}; фальшивый баланс не подставляется.</p>)}
-              {!walletData.loading && !walletData.balance && !walletData.errors.some((error) => error.startsWith('balance:')) && (
-                <p className="muted">Баланс TON не получен.</p>
-              )}
-            </section>
+      <ErrorBoundary>
+        <Suspense fallback={<PanelFallback />}>
+          {activeTab === 'swap' && (
+            <SwapPanel
+              wallet={wallet}
+              walletAddress={walletAddress}
+              walletData={walletData}
+              onTransactionChange={refreshWalletData}
+            />
           )}
 
-          {wallet && (
-            <section className="transfer-card">
-              <h3>Добровольный перевод разработчику</h3>
-              <p>Отдельный обычный TON-перевод на указанный адрес. Он не является комиссией за swap, не связан с успешностью обмена и не возвращается при отмене или ошибке свапа.</p>
-              <label className="field-label">Сумма перевода (TON)
-                <input className="full-input" inputMode="decimal" value={transferAmount} onChange={(event) => setTransferAmount(event.target.value)} placeholder="0.01" />
-              </label>
-              <button className="secondary-button" type="button" disabled={!isMainnet || !parseTonAmount(transferAmount)} onClick={() => setTransferDialogOpen(true)}>Проверить перевод</button>
-            </section>
+          {activeTab === 'pools' && <PoolPanel />}
+
+          {activeTab === 'futures' && (
+            <FuturesPanel
+              wallet={wallet}
+              walletData={walletData}
+              onOpenSwap={() => setActiveTab('swap')}
+            />
           )}
 
-          {wallet && (
-            <section className="history-section">
-              <div className="subheading"><h3>История кошелька (сеть)</h3></div>
-              {walletData.loading && <p className="muted">Загрузка…</p>}
-              {walletData.events?.events?.length > 0 ? walletData.events.events.map((event) => (
-                <div className="history-item" key={event.event_id || event.lt}>
-                  <strong>{event.actions?.[0]?.type || 'Событие TON'}</strong>
-                  <span>{event.timestamp ? new Date(event.timestamp).toLocaleString('ru-RU') : 'Время неизвестно'}</span>
-                  <small>{event.event_id || event.lt || 'ID не предоставлен TonAPI'}</small>
-                </div>
-              )) : (!walletData.loading && walletData.events && <p className="muted">Событий не найдено.</p>)}
-              {walletData.errors.some((error) => error.startsWith('events:')) && <p className="muted">Сетевая история временно недоступна.</p>}
-            </section>
+          {activeTab === 'wallet' && (
+            <WalletPanel
+              wallet={wallet}
+              walletAddress={walletAddress}
+              walletData={walletData}
+              isMainnet={isMainnet}
+              transferAmount={transferAmount}
+              setTransferAmount={setTransferAmount}
+              transferDialogOpen={transferDialogOpen}
+              setTransferDialogOpen={setTransferDialogOpen}
+              transferPending={transferPending}
+              onRefresh={refreshWalletData}
+              onSubmitTransfer={submitVoluntaryTransfer}
+              setNotice={setNotice}
+            />
           )}
-        </main>
-      )}
+        </Suspense>
+      </ErrorBoundary>
 
       {transferDialogOpen && (
         <div className="modal-backdrop" role="presentation">
