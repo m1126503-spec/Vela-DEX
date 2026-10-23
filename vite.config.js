@@ -17,7 +17,10 @@ export default defineConfig({
     port: 5173
   },
   build: {
-    chunkSizeWarningLimit: 1000,
+    target: 'esnext',
+    minify: 'esbuild',
+    cssCodeSplit: true,
+    chunkSizeWarningLimit: 800,
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -25,7 +28,8 @@ export default defineConfig({
           if (id.includes('@ton/') || id.includes('@tonconnect/')) return 'ton-vendor';
           if (id.includes('@ston-fi/')) return 'ston-vendor';
           if (id.includes('/react/') || id.includes('/react-dom/')) return 'react-vendor';
-          return undefined;
+          if (id.includes('@vercel/')) return 'vercel-vendor';
+          return 'vendor';
         }
       }
     }
