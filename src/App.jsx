@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   TonConnectButton,
   useTonAddress,
@@ -11,7 +11,7 @@ import SwapPanel from './components/SwapPanel';
 import PoolPanel from './components/PoolPanel';
 import FuturesPanel from './components/FuturesPanel';
 import { fetchWalletEvents, fetchWalletJettons, fetchWalletTonBalance } from './lib/tonApi';
-import { formatTokenAmount } from './lib/stonSwap';
+import { formatTokenAmount, getWalletTokenBalance, SUPPORTED_TOKENS } from './lib/stonSwap';
 import { SailMark } from './components/Marks';
 
 function parseTonAmount(value) {
@@ -179,6 +179,18 @@ export default function App() {
     setActiveTab(key);
   }
 
+  const tonBalance = useMemo(() => {
+    if (!walletData.balance?.balance) return null;
+    return formatTokenAmount(walletData.balance.balance, 9, 2);
+  }, [walletData.balance]);
+
+  const usdtBalance = useMemo(() => {
+    const token = SUPPORTED_TOKENS.find((t) => t.symbol === 'USDT');
+    const units = getWalletTokenBalance(walletData, token);
+    if (units == null) return null;
+    return formatTokenAmount(units, token.decimals, 2);
+  }, [walletData]);
+
   return (
     <div className="stage">
       <div className="parallax-field" aria-hidden="true">
@@ -207,6 +219,18 @@ export default function App() {
         </div>
         <div className="wallet-block"><TonConnectButton /></div>
       </header>
+
+      {wallet && isMainnet && (
+        <div className="balance-strip">
+          <div className="bal-main">
+            <div className="bal-label">Balance</div>
+            <div className="bal-value">{tonBalance ?? '—'} TON</div>
+          </div>
+          <div className="bal-secondary">
+            {usdtBalance != null ? `${usdtBalance} USDT` : walletData.loading ? '…' : 'USDT —'}
+          </div>
+        </div>
+      )}
 
       <div className="network-banner">
         <strong>{activeTab === 'futures' ? 'PERPS · PREVIEW' : 'STON.FI · MAINNET'}</strong>
