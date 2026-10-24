@@ -1,44 +1,75 @@
 import { useEffect, useState } from 'react';
 
-// Simple visual chart. In a real perps app this would be fed by a price feed.
-export default function PriceChart({ symbol = 'TON', basePrice = 5.42 }) {
-  const [price, setPrice] = useState(basePrice);
-  const [change, setChange] = useState(0);
+const ID_MAP = {
+  TON: 'the-open-network',
+  NOT: 'notcoin',
+  USDT: 'tether',
+  STON: 'ston-2',
+  DOGS: 'dogs-2'
+};
+
+export default function PriceChart({ symbol = 'TON' }) {
+  const [price, setPrice] = useState(null);
+  const [change, setChange] = useState(null);
   const [bars, setBars] = useState(() =>
-    Array.from({ length: 24 }, () => Math.random() * 0.8 + 0.2)
+    Array.from({ length: 24 }, () => Math.random() * 0.7 + 0.25)
   );
 
   useEffect(() => {
-    const id = setInterval(() => {
-      setPrice((prev) => {
-        const delta = (Math.random() - 0.48) * 0.015;
-        const next = Math.max(0.1, prev * (1 + delta));
-        setChange(((next - basePrice) / basePrice) * 100);
-        return next;
-      });
-      setBars((prev) => {
-        const next = [...prev.slice(1), Math.random() * 0.75 + 0.25];
-        return next;
-      });
-    }, 2800);
-    return () => clearInterval(id);
-  }, [basePrice]);
+    const id = ID_MAP[symbol] || ID_MAP.TON;
+    let cancelled = false;
 
-  const isUp = change >= 0;
+    async function load() {
+      try {
+        const res = await fetch(
+          `https://api.coingecko.com/api/v3/simple/price?ids=${id}&vs_currencies=usd&include_24hr_change=true`
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        const entry = data[id];
+        if (!cancelled && entry) {
+          setPrice(typeof entry.usd === 'number' ? entry.usd : null);
+          setChange(typeof entry.usd_24h_change === 'number' ? entry.usd_24h_change : null);
+        }
+      } catch {
+        /* keep previous */
+      }
+    }
+
+    load();
+    const timer = setInterval(load, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [symbol]);
+
+  // Lightweight visual bars that gently move while real price is shown
+  useEffect(() => {
+    const id = setInterval(() => {
+      setBars((prev) => [...prev.slice(1), Math.random() * 0.65 + 0.3]);
+    }, 4000);
+    return () => clearInterval(id);
+  }, []);
+
+  const isUp = (change ?? 0) >= 0;
+  const priceText = price == null
+    ? '—'
+    : price < 0.01
+      ? price.toFixed(6)
+      : price.toFixed(price < 1 ? 4 : 3);
 
   return (
     <div className="price-chart">
       <div className="price-chart-header">
         <div>
           <div style={{ fontSize: 12, color: 'var(--color-muted)', marginBottom: 2 }}>
-            {symbol}/USDT · 15m
+            {symbol}/USDT · CoinGecko
           </div>
-          <div className="price-chart-price">
-            ${price.toFixed(3)}
-          </div>
+          <div className="price-chart-price">${priceText}</div>
         </div>
-        <div className={`price-chart-change ${isUp ? 'up' : 'down'}`}>
-          {isUp ? '+' : ''}{change.toFixed(2)}%
+        <div className={`price-chart-change ${change == null ? '' : isUp ? 'up' : 'down'}`}>
+          {change == null ? '—' : `${isUp ? '+' : ''}${change.toFixed(2)}%`}
         </div>
       </div>
       <div className="chart-bars" aria-hidden="true">
@@ -51,7 +82,7 @@ export default function PriceChart({ symbol = 'TON', basePrice = 5.42 }) {
         ))}
       </div>
       <div style={{ fontSize: 10, color: 'var(--color-faint)', marginTop: 6, textAlign: 'right' }}>
-        Демо-график · не торговая котировка
+        Цена с CoinGecko · график визуальный
       </div>
     </div>
   );
