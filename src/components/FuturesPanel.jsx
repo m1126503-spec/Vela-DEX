@@ -76,7 +76,7 @@ export default function FuturesPanel({ wallet, walletData, onOpenSwap }) {
 
       <MarketsList activeSymbol={asset} onSelect={(sym) => setAsset(sym)} />
 
-      <PriceChart symbol={asset} basePrice={asset === 'TON' ? 5.42 : asset === 'NOT' ? 0.0082 : 1.0} />
+      <PriceChart symbol={asset} />
 
       <div className="futures-unavailable" role="status">
         <strong>Фьючерсный протокол не подключен</strong>
