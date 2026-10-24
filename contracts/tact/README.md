@@ -101,6 +101,23 @@ calculation, funding settlement, fee charging, partial close, collateral
 withdrawal, insurance-fund accounting, and loss socialization are deliberately
 not implemented.
 
+## MarginPool (scaffold implementation)
+
+`MarginPool.tact` provides a minimal native-TON collateral vault that matches
+the integration boundary above:
+
+- Users deposit TON (gas reserve reserved) and can withdraw free balance.
+- `OpenPosition` locks the requested collateral, assigns a monotonic `positionId`,
+  and forwards `OpenPositionFromPool` to the configured market with bounce enabled.
+- On bounce of the open message the lock is released and collateral returned to free balance.
+- `SettleLiquidation` (only from the market) caps the bounty, returns non-negative
+  equity to the owner, marks the position liquidated, and sends `LiquidationSettled`.
+- Getters expose free/locked balances and locked position records.
+
+This is still a scaffold: amounts are raw TON (not 9-decimal normalized), there is
+no insurance fund, partial close, funding settlement, or multi-position support,
+and no formal verification. Use only for architecture exploration and sandbox testing.
+
 ## Before use
 
 Create an isolated Tact/Blueprint project, pin a supported compiler version,
