@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { useTonConnectUI } from '@tonconnect/ui-react';
 import { formatTokenAmount, getWalletTokenBalance, SUPPORTED_TOKENS } from '../lib/stonSwap';
 import { calculateFuturesEstimate } from '../lib/futuresEstimate';
+import PriceChart from './PriceChart';
 
 const LEVERAGE_PRESETS = [1, 2, 5, 10, 20, 50];
 const ORDER_TYPES = [
@@ -72,9 +73,11 @@ export default function FuturesPanel({ wallet, walletData, onOpenSwap }) {
         <span className="chip futures-preview-chip">PREVIEW</span>
       </div>
 
+      <PriceChart symbol={asset} basePrice={asset === 'TON' ? 5.42 : asset === 'NOT' ? 0.0082 : 1.0} />
+
       <div className="futures-unavailable" role="status">
         <strong>Фьючерсный протокол не подключен</strong>
-        <span>Расчеты ниже — предварительная оценка по введенной вручную цене. Ордер не будет отправлен, а котировка и комиссии не загружаются.</span>
+        <span>Расчеты ниже — предварительная оценка по введенной вручную цене. Ордер не будет отправлен.</span>
       </div>
 
       <div className="futures-direction" aria-label="Направление позиции">
