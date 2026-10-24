@@ -1,31 +1,49 @@
 import { useEffect, useState } from 'react';
 
-const INITIAL = [
-  { symbol: 'TON', name: 'Toncoin', price: 5.42, change: 1.24 },
-  { symbol: 'NOT', name: 'Notcoin', price: 0.0082, change: -2.15 },
-  { symbol: 'USDT', name: 'Tether', price: 1.0, change: 0.01 },
-  { symbol: 'STON', name: 'STON.fi', price: 0.312, change: 4.8 },
-  { symbol: 'DOGS', name: 'Dogs', price: 0.0011, change: -1.4 }
+const COINS = [
+  { symbol: 'TON', name: 'Toncoin', id: 'the-open-network' },
+  { symbol: 'NOT', name: 'Notcoin', id: 'notcoin' },
+  { symbol: 'USDT', name: 'Tether', id: 'tether' },
+  { symbol: 'STON', name: 'STON.fi', id: 'ston-2' },
+  { symbol: 'DOGS', name: 'Dogs', id: 'dogs-2' }
 ];
 
-export default function MarketsList({ onSelect, activeSymbol }) {
-  const [markets, setMarkets] = useState(INITIAL);
+const IDS = COINS.map((c) => c.id).join(',');
+const API = `https://api.coingecko.com/api/v3/simple/price?ids=${IDS}&vs_currencies=usd&include_24hr_change=true`;
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      setMarkets((prev) =>
-        prev.map((m) => {
-          const delta = (Math.random() - 0.5) * 0.004;
-          const nextPrice = Math.max(0.0001, m.price * (1 + delta));
-          const nextChange = m.change + (Math.random() - 0.5) * 0.15;
+export default function MarketsList({ onSelect, activeSymbol }) {
+  const [markets, setMarkets] = useState(
+    COINS.map((c) => ({ ...c, price: null, change: null }))
+  );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  async function load() {
+    try {
+      setError('');
+      const res = await fetch(API);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setMarkets(
+        COINS.map((c) => {
+          const entry = data[c.id] || {};
           return {
-            ...m,
-            price: nextPrice,
-            change: Number(nextChange.toFixed(2))
+            ...c,
+            price: typeof entry.usd === 'number' ? entry.usd : null,
+            change: typeof entry.usd_24h_change === 'number' ? entry.usd_24h_change : null
           };
         })
       );
-    }, 3200);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Network error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 60_000);
     return () => clearInterval(id);
   }, []);
 
@@ -33,11 +51,21 @@ export default function MarketsList({ onSelect, activeSymbol }) {
     <div className="markets-list">
       <div className="markets-header">
         <span>Рынки</span>
-        <span className="muted">демо</span>
+        <span className="muted">{loading ? '…' : error ? 'ошибка' : 'CoinGecko'}</span>
       </div>
+      {error && !markets.some((m) => m.price != null) && (
+        <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--color-warn)' }}>
+          Не удалось загрузить цены. {error}
+        </div>
+      )}
       {markets.map((m) => {
-        const isUp = m.change >= 0;
+        const isUp = (m.change ?? 0) >= 0;
         const isActive = activeSymbol === m.symbol;
+        const priceText = m.price == null
+          ? '—'
+          : m.price < 0.01
+            ? m.price.toFixed(6)
+            : m.price.toFixed(m.price < 1 ? 4 : 3);
         return (
           <button
             type="button"
@@ -50,11 +78,9 @@ export default function MarketsList({ onSelect, activeSymbol }) {
               <div className="market-name">{m.name}</div>
             </div>
             <div className="market-right">
-              <div className="market-price">
-                {m.price < 0.01 ? m.price.toFixed(6) : m.price.toFixed(3)}
-              </div>
-              <div className={`market-change ${isUp ? 'up' : 'down'}`}>
-                {isUp ? '+' : ''}{m.change.toFixed(2)}%
+              <div className="market-price">{priceText}</div>
+              <div className={`market-change ${m.change == null ? '' : isUp ? 'up' : 'down'}`}>
+                {m.change == null ? '—' : `${isUp ? '+' : ''}${m.change.toFixed(2)}%`}
               </div>
             </div>
           </button>
