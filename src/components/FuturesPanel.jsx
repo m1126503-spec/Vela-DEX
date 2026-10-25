@@ -12,6 +12,7 @@ import {
 } from '../lib/stormV3';
 import PriceChart from './PriceChart';
 import MarketsList from './MarketsList';
+import HyperliquidPanel from './HyperliquidPanel';
 
 const LEVERAGE_PRESETS = [1, 2, 5, 10, 20, 50];
 const ORDER_TYPES = [
@@ -33,6 +34,7 @@ function formatEstimate(value, maximumFractionDigits = 2) {
 }
 
 export default function FuturesPanel() {
+  const [venue, setVenue] = useState('hyperliquid');
   const [side, setSide] = useState('long');
   const [orderType, setOrderType] = useState('market');
   const [asset, setAsset] = useState(FUTURES_ASSETS[0].symbol);
@@ -119,8 +121,16 @@ export default function FuturesPanel() {
 
   return (
     <main className="card futures-card">
+      <div className="futures-venue-switch" role="tablist" aria-label="Площадка для фьючерсов">
+        <button type="button" role="tab" aria-selected={venue === 'hyperliquid'} className={venue === 'hyperliquid' ? 'active' : ''} onClick={() => setVenue('hyperliquid')}>Hyperliquid · testnet</button>
+        <button type="button" role="tab" aria-selected={venue === 'storm'} className={venue === 'storm' ? 'active' : ''} onClick={() => setVenue('storm')}>Storm V3 · read-only</button>
+      </div>
+
+      {venue === 'hyperliquid' && <HyperliquidPanel />}
+
+      <section className="storm-venue-panel" hidden={venue !== 'storm'}>
       <div className="section-heading">
-        <div><small>Storm Trade V3 · public reads</small><h2>Futures</h2></div>
+        <div><small>Storm Trade V3 · public reads</small><h2>Storm Futures</h2></div>
         <span className="chip futures-preview-chip">READ-ONLY</span>
       </div>
 
@@ -324,6 +334,7 @@ export default function FuturesPanel() {
       <p className="fine-print centered futures-disclaimer">
         * Упрощенная арифметическая оценка: без поддерживающей маржи, funding, комиссий, проскальзывания и правил ликвидации. Не является котировкой или обещанием цены исполнения.
       </p>
+      </section>
     </main>
   );
 }

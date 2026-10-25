@@ -233,9 +233,9 @@ export default function App() {
       )}
 
       <div className={`network-banner ${activeTab === 'futures' ? 'network-banner-readonly' : ''}`}>
-        <strong>{activeTab === 'futures' ? 'PERPS · READ-ONLY' : 'STON.FI · MAINNET'}</strong>
+        <strong>{activeTab === 'futures' ? 'HYPERLIQUID · TESTNET' : 'STON.FI · MAINNET'}</strong>
         <span>{activeTab === 'futures'
-          ? 'Storm V3: только публичные данные. Отправка и подписание ордеров отключены.'
+          ? 'Подключайте отдельный EVM-кошелек только для лимитных заявок в тестовой сети; Storm V3 остается read-only.'
           : 'Свапы исполняются on-chain через подключенный TON-кошелек. Каждая транзакция требует подписи.'}</span>
       </div>
       {wallet && !isMainnet && activeTab !== 'futures' && (
