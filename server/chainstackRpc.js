@@ -1,4 +1,4 @@
-import { FetchRequest, JsonRpcProvider } from 'ethers';
+import { createPublicClient, http } from 'viem';
 
 const HYPERLIQUID_TESTNET_CHAIN_ID = '0x66eee';
 export const MAX_RPC_BODY_BYTES = 64 * 1024;
@@ -24,10 +24,13 @@ const READ_ONLY_METHODS = new Set([
   'web3_clientVersion'
 ]);
 
-function createProvider(endpoint) {
-  const request = new FetchRequest(endpoint);
-  request.timeout = REQUEST_TIMEOUT_MS;
-  return new JsonRpcProvider(request);
+function createHttpClient(endpoint) {
+  return createPublicClient({
+    transport: http(endpoint, {
+      timeout: REQUEST_TIMEOUT_MS,
+      retryCount: 0
+    })
+  });
 }
 
 function getEndpoint(env) {
@@ -129,20 +132,15 @@ async function verifyExpectedChain(endpoint, fetchImpl) {
     && BigInt(actualChainId) === BigInt(HYPERLIQUID_TESTNET_CHAIN_ID);
 }
 
-async function inspectChain(endpoint, providerFactory) {
-  const provider = providerFactory(endpoint);
-  try {
-    const network = await provider.getNetwork();
-    const chainId = network.chainId.toString();
-    const latestBlock = await provider.getBlockNumber();
-    return {
-      chainId,
-      latestBlock,
-      compatible: BigInt(chainId) === BigInt(HYPERLIQUID_TESTNET_CHAIN_ID)
-    };
-  } finally {
-    provider.destroy();
-  }
+async function inspectChain(endpoint, clientFactory) {
+  const client = clientFactory(endpoint);
+  const chainId = (await client.getChainId()).toString();
+  const latestBlock = (await client.getBlockNumber()).toString();
+  return {
+    chainId,
+    latestBlock,
+    compatible: BigInt(chainId) === BigInt(HYPERLIQUID_TESTNET_CHAIN_ID)
+  };
 }
 
 export async function handleChainstackRpcRequest({
@@ -150,7 +148,7 @@ export async function handleChainstackRpcRequest({
   body,
   env = process.env,
   fetchImpl = fetch,
-  providerFactory = createProvider
+  clientFactory = createHttpClient
 }) {
   if (method !== 'GET' && method !== 'POST') {
     return jsonResponse(405, { error: 'Method not allowed.' });
@@ -167,7 +165,7 @@ export async function handleChainstackRpcRequest({
       ? jsonResponse(200, { configured: false, compatible: false })
       : jsonResponse(503, { error: 'Chainstack RPC is not configured.' });
   }
-  if (typeof fetchImpl !== 'function' || typeof providerFactory !== 'function') {
+  if (typeof fetchImpl !== 'function' || typeof clientFactory !== 'function') {
     return jsonResponse(503, { configured: true, compatible: false });
   }
 
@@ -176,7 +174,7 @@ export async function handleChainstackRpcRequest({
       return jsonResponse(429, { error: 'Chainstack RPC rate limit exceeded.' });
     }
     try {
-      const status = await inspectChain(endpoint, providerFactory);
+      const status = await inspectChain(endpoint, clientFactory);
       return jsonResponse(200, { configured: true, ...status });
     } catch {
       return jsonResponse(502, { configured: true, compatible: false });

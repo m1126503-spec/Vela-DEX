@@ -26,25 +26,22 @@ function makeFetch(chainId = '0x66eee') {
   return { fetchImpl, requests };
 }
 
-function makeProvider(chainId = 421_614n, latestBlock = 12_345) {
+function makeClient(chainId = 421_614, latestBlock = 12_345n) {
   const calls = [];
-  const providerFactory = (url) => {
+  const clientFactory = (url) => {
     calls.push({ method: 'create', url });
     return {
-      async getNetwork() {
-        calls.push({ method: 'getNetwork' });
-        return { chainId };
+      async getChainId() {
+        calls.push({ method: 'getChainId' });
+        return chainId;
       },
       async getBlockNumber() {
         calls.push({ method: 'getBlockNumber' });
         return latestBlock;
-      },
-      destroy() {
-        calls.push({ method: 'destroy' });
       }
     };
   };
-  return { providerFactory, calls };
+  return { clientFactory, calls };
 }
 
 test('reports unconfigured Chainstack without exposing an endpoint', async () => {
@@ -54,41 +51,40 @@ test('reports unconfigured Chainstack without exposing an endpoint', async () =>
 });
 
 test('uses configured Chainstack only after confirming the Arbitrum Sepolia chain ID', async () => {
-  const { providerFactory, calls } = makeProvider();
+  const { clientFactory, calls } = makeClient();
   const result = await handleChainstackRpcRequest({
     method: 'GET',
     env,
-    providerFactory
+    clientFactory
   });
 
   assert.deepEqual(result.body, {
     configured: true,
     compatible: true,
     chainId: '421614',
-    latestBlock: 12_345
+    latestBlock: '12345'
   });
   assert.deepEqual(calls.map(({ method }) => method), [
     'create',
-    'getNetwork',
-    'getBlockNumber',
-    'destroy'
+    'getChainId',
+    'getBlockNumber'
   ]);
   assert.equal(calls[0].url, endpoint);
   assert.equal(JSON.stringify(result.body).includes('secret-token'), false);
 });
 
 test('reports an unknown chain ID but does not mark or authorize it as compatible', async () => {
-  const { providerFactory } = makeProvider(1n, 22_222);
+  const { clientFactory } = makeClient(1, 22_222n);
   const result = await handleChainstackRpcRequest({
     method: 'GET',
     env,
-    providerFactory
+    clientFactory
   });
 
   assert.deepEqual(result.body, {
     configured: true,
     chainId: '1',
-    latestBlock: 22_222,
+    latestBlock: '22222',
     compatible: false
   });
 });
