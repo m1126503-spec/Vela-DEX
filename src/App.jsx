@@ -232,7 +232,7 @@ export default function App() {
         </div>
       )}
 
-      <div className="network-banner">
+      <div className={`network-banner ${activeTab === 'futures' ? 'network-banner-readonly' : ''}`}>
         <strong>{activeTab === 'futures' ? 'PERPS · READ-ONLY' : 'STON.FI · MAINNET'}</strong>
         <span>{activeTab === 'futures'
           ? 'Storm V3: только публичные данные. Отправка и подписание ордеров отключены.'
