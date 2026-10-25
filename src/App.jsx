@@ -10,6 +10,7 @@ import { APP_NAME, PLATFORM_WALLET_ADDRESS, TELEGRAM_BOT_USERNAME } from './conf
 import SwapPanel from './components/SwapPanel';
 import PoolPanel from './components/PoolPanel';
 import FuturesPanel from './components/FuturesPanel';
+import AnalyticsPanel from './components/AnalyticsPanel';
 import { fetchWalletEvents, fetchWalletJettons, fetchWalletTonBalance } from './lib/tonApi';
 import { formatTokenAmount, getWalletTokenBalance, SUPPORTED_TOKENS } from './lib/stonSwap';
 import { SailMark } from './components/Marks';
@@ -172,7 +173,7 @@ export default function App() {
   }
 
   const refreshWalletData = () => setWalletDataRefresh((value) => value + 1);
-  const tabOrder = { swap: 0, pools: 1, futures: 2, wallet: 3 };
+  const tabOrder = { swap: 0, pools: 1, analytics: 2, futures: 3, wallet: 4 };
 
   function openTab(key) {
     setSlide((tabOrder[key] ?? 0) >= (tabOrder[activeTab] ?? 0) ? 1 : -1);
@@ -192,7 +193,7 @@ export default function App() {
   }, [walletData]);
 
   return (
-    <div className="stage">
+    <div className={`stage ${activeTab === 'analytics' ? 'stage-analytics' : ''}`}>
       <div className="parallax-field" aria-hidden="true">
         <span className="parallax-glow near" />
         <span className="parallax-glow far" />
@@ -211,11 +212,11 @@ export default function App() {
           <li><span>03</span>Статус сверяется в сети</li>
         </ul>
       </aside>
-      <div className="page">
+      <div className={`page ${activeTab === 'analytics' ? 'page-analytics' : ''}`}>
       <header className="topbar">
         <div className="brand">
           <div className="brand-mark"><span className="sail-depth sail-depth-mark"><SailMark className="sail-svg" /></span></div>
-          <div className="brand-copy"><h1>Vela <em>DEX</em></h1><small>TON mainnet</small></div>
+          <div className="brand-copy"><h1>Vela <em>DEX</em></h1><small>{activeTab === 'analytics' ? 'Public data' : 'TON mainnet'}</small></div>
         </div>
         <div className="wallet-block"><TonConnectButton /></div>
       </header>
@@ -233,10 +234,16 @@ export default function App() {
       )}
 
       <div className={`network-banner ${activeTab === 'futures' ? 'network-banner-readonly' : ''}`}>
-        <strong>{activeTab === 'futures' ? 'HYPERLIQUID · TESTNET' : 'STON.FI · MAINNET'}</strong>
-        <span>{activeTab === 'futures'
-          ? 'Подключайте отдельный EVM-кошелек только для лимитных заявок в тестовой сети; Storm V3 остается read-only.'
-          : 'Свапы исполняются on-chain через подключенный TON-кошелек. Каждая транзакция требует подписи.'}</span>
+        <strong>{activeTab === 'analytics'
+          ? 'HYPERLIQUID · ON-CHAIN ANALYTICS'
+          : activeTab === 'futures'
+            ? 'HYPERLIQUID · TESTNET'
+            : 'STON.FI · MAINNET'}</strong>
+        <span>{activeTab === 'analytics'
+          ? 'Публичные метрики и история протокола. Аналитика доступна без подключения кошелька; торговля вынесена отдельно.'
+          : activeTab === 'futures'
+            ? 'Подключайте отдельный EVM-кошелек только для лимитных заявок в тестовой сети; Storm V3 остается read-only.'
+            : 'Свапы исполняются on-chain через подключенный TON-кошелек. Каждая транзакция требует подписи.'}</span>
       </div>
       {wallet && !isMainnet && activeTab !== 'futures' && (
         <div className="inline-warning">Кошелек подключен к testnet. Свапы доступны только через STON.fi в TON mainnet.</div>
@@ -245,7 +252,7 @@ export default function App() {
 
       <nav className="tabs" data-tab={activeTab} aria-label="Разделы">
         <span className="tab-thumb" aria-hidden="true" />
-        {[['swap', 'Swap'], ['pools', 'Pools'], ['futures', 'Futures'], ['wallet', 'Wallet']].map(([key, label]) => (
+        {[['swap', 'Swap'], ['pools', 'Pools'], ['analytics', 'Analytics'], ['futures', 'Futures'], ['wallet', 'Wallet']].map(([key, label]) => (
           <button key={key} type="button" className={activeTab === key ? 'tab active' : 'tab'} onClick={() => openTab(key)}>{label}</button>
         ))}
       </nav>
@@ -261,6 +268,8 @@ export default function App() {
       )}
 
       {activeTab === 'pools' && <PoolPanel />}
+
+      {activeTab === 'analytics' && <AnalyticsPanel />}
 
       {activeTab === 'futures' && (
         <FuturesPanel />
