@@ -1,3 +1,5 @@
+import { FetchRequest, JsonRpcProvider } from 'ethers';
+
 const HYPERLIQUID_TESTNET_CHAIN_ID = '0x66eee';
 export const MAX_RPC_BODY_BYTES = 64 * 1024;
 const MAX_BATCH_SIZE = 10;
@@ -21,6 +23,12 @@ const READ_ONLY_METHODS = new Set([
   'net_version',
   'web3_clientVersion'
 ]);
+
+function createProvider(endpoint) {
+  const request = new FetchRequest(endpoint);
+  request.timeout = REQUEST_TIMEOUT_MS;
+  return new JsonRpcProvider(request);
+}
 
 function getEndpoint(env) {
   const value = env.CHAINSTACK_EVM_RPC_URL;
@@ -121,11 +129,28 @@ async function verifyExpectedChain(endpoint, fetchImpl) {
     && BigInt(actualChainId) === BigInt(HYPERLIQUID_TESTNET_CHAIN_ID);
 }
 
+async function inspectChain(endpoint, providerFactory) {
+  const provider = providerFactory(endpoint);
+  try {
+    const network = await provider.getNetwork();
+    const chainId = network.chainId.toString();
+    const latestBlock = await provider.getBlockNumber();
+    return {
+      chainId,
+      latestBlock,
+      compatible: BigInt(chainId) === BigInt(HYPERLIQUID_TESTNET_CHAIN_ID)
+    };
+  } finally {
+    provider.destroy();
+  }
+}
+
 export async function handleChainstackRpcRequest({
   method,
   body,
   env = process.env,
-  fetchImpl = fetch
+  fetchImpl = fetch,
+  providerFactory = createProvider
 }) {
   if (method !== 'GET' && method !== 'POST') {
     return jsonResponse(405, { error: 'Method not allowed.' });
@@ -142,8 +167,20 @@ export async function handleChainstackRpcRequest({
       ? jsonResponse(200, { configured: false, compatible: false })
       : jsonResponse(503, { error: 'Chainstack RPC is not configured.' });
   }
-  if (typeof fetchImpl !== 'function') {
+  if (typeof fetchImpl !== 'function' || typeof providerFactory !== 'function') {
     return jsonResponse(503, { configured: true, compatible: false });
+  }
+
+  if (method === 'GET') {
+    if (!consumeRateLimit(1)) {
+      return jsonResponse(429, { error: 'Chainstack RPC rate limit exceeded.' });
+    }
+    try {
+      const status = await inspectChain(endpoint, providerFactory);
+      return jsonResponse(200, { configured: true, ...status });
+    } catch {
+      return jsonResponse(502, { configured: true, compatible: false });
+    }
   }
 
   const parsed = method === 'POST' ? parseRequests(body) : null;
@@ -158,17 +195,7 @@ export async function handleChainstackRpcRequest({
   try {
     const compatible = await verifyExpectedChain(endpoint, fetchImpl);
     if (!compatible) {
-      return method === 'GET'
-        ? jsonResponse(200, { configured: true, compatible: false })
-        : jsonResponse(503, { error: 'Configured Chainstack node does not match Arbitrum Sepolia.' });
-    }
-
-    if (method === 'GET') {
-      return jsonResponse(200, {
-        configured: true,
-        compatible: true,
-        chainId: HYPERLIQUID_TESTNET_CHAIN_ID
-      });
+      return jsonResponse(503, { error: 'Configured Chainstack node does not match Arbitrum Sepolia.' });
     }
 
     const response = await postRpc(endpoint, parsed.payload, fetchImpl);

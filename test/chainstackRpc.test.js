@@ -26,6 +26,27 @@ function makeFetch(chainId = '0x66eee') {
   return { fetchImpl, requests };
 }
 
+function makeProvider(chainId = 421_614n, latestBlock = 12_345) {
+  const calls = [];
+  const providerFactory = (url) => {
+    calls.push({ method: 'create', url });
+    return {
+      async getNetwork() {
+        calls.push({ method: 'getNetwork' });
+        return { chainId };
+      },
+      async getBlockNumber() {
+        calls.push({ method: 'getBlockNumber' });
+        return latestBlock;
+      },
+      destroy() {
+        calls.push({ method: 'destroy' });
+      }
+    };
+  };
+  return { providerFactory, calls };
+}
+
 test('reports unconfigured Chainstack without exposing an endpoint', async () => {
   const result = await handleChainstackRpcRequest({ method: 'GET', env: {} });
   assert.equal(result.status, 200);
@@ -33,21 +54,43 @@ test('reports unconfigured Chainstack without exposing an endpoint', async () =>
 });
 
 test('uses configured Chainstack only after confirming the Arbitrum Sepolia chain ID', async () => {
-  const { fetchImpl, requests } = makeFetch();
+  const { providerFactory, calls } = makeProvider();
   const result = await handleChainstackRpcRequest({
     method: 'GET',
     env,
-    fetchImpl
+    providerFactory
   });
 
   assert.deepEqual(result.body, {
     configured: true,
     compatible: true,
-    chainId: '0x66eee'
+    chainId: '421614',
+    latestBlock: 12_345
   });
-  assert.equal(requests.length, 1);
-  assert.equal(requests[0].url, endpoint);
+  assert.deepEqual(calls.map(({ method }) => method), [
+    'create',
+    'getNetwork',
+    'getBlockNumber',
+    'destroy'
+  ]);
+  assert.equal(calls[0].url, endpoint);
   assert.equal(JSON.stringify(result.body).includes('secret-token'), false);
+});
+
+test('reports an unknown chain ID but does not mark or authorize it as compatible', async () => {
+  const { providerFactory } = makeProvider(1n, 22_222);
+  const result = await handleChainstackRpcRequest({
+    method: 'GET',
+    env,
+    providerFactory
+  });
+
+  assert.deepEqual(result.body, {
+    configured: true,
+    chainId: '1',
+    latestBlock: 22_222,
+    compatible: false
+  });
 });
 
 test('rejects a Chainstack node on an unrecognized chain before relaying requests', async () => {
