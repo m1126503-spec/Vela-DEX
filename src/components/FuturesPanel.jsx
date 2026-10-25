@@ -1,8 +1,15 @@
 // @ts-nocheck
-import { useMemo, useState } from 'react';
-import { useTonConnectUI } from '@tonconnect/ui-react';
-import { formatTokenAmount, getWalletTokenBalance, SUPPORTED_TOKENS } from '../lib/stonSwap';
+import { useEffect, useMemo, useState } from 'react';
+import { SUPPORTED_TOKENS } from '../lib/stonSwap';
 import { calculateFuturesEstimate } from '../lib/futuresEstimate';
+import {
+  fetchStormIntent,
+  fetchStormMarkets,
+  getStormV3Config,
+  loadTrackedStormIntents,
+  normalizeStormIntentHash,
+  saveTrackedStormIntent
+} from '../lib/stormV3';
 import PriceChart from './PriceChart';
 import MarketsList from './MarketsList';
 
@@ -12,66 +19,109 @@ const ORDER_TYPES = [
   { value: 'limit', label: 'Limit' },
   { value: 'stop', label: 'Stop' }
 ];
-const COLLATERAL_TOKEN = SUPPORTED_TOKENS.find((token) => token.symbol === 'USDT');
 const FUTURES_ASSETS = SUPPORTED_TOKENS.filter((token) => token.symbol !== 'USDT');
+const STORM_CONFIG = getStormV3Config();
+const MISSING_STORM_CONFIG = [
+  !STORM_CONFIG.isTestnet && 'VITE_STORM_V3_NETWORK=testnet',
+  STORM_CONFIG.isTestnet && !STORM_CONFIG.apiUrl && 'VITE_STORM_V3_API_URL',
+  STORM_CONFIG.isTestnet && !STORM_CONFIG.marketsUrl && 'VITE_STORM_V3_MARKETS_URL'
+].filter(Boolean);
 
 function formatEstimate(value, maximumFractionDigits = 2) {
   if (!Number.isFinite(value)) return '—';
   return value.toLocaleString('ru-RU', { maximumFractionDigits });
 }
 
-export default function FuturesPanel({ wallet, walletData, onOpenSwap }) {
-  const [tonConnectUI] = useTonConnectUI();
-  const [connectError, setConnectError] = useState('');
+export default function FuturesPanel() {
   const [side, setSide] = useState('long');
   const [orderType, setOrderType] = useState('market');
   const [asset, setAsset] = useState(FUTURES_ASSETS[0].symbol);
   const [leverage, setLeverage] = useState(5);
   const [margin, setMargin] = useState('');
   const [price, setPrice] = useState('');
-  const isMainnet = wallet?.account?.chain === '-239';
-  const balanceUnits = getWalletTokenBalance(walletData, COLLATERAL_TOKEN);
-  const availableBalance = !wallet || !isMainnet || balanceUnits === null
-    ? null
-    : Number(balanceUnits) / 1_000_000;
+  const [stormMarkets, setStormMarkets] = useState({ loading: false, rows: [], error: '' });
+  const [marketsRefresh, setMarketsRefresh] = useState(0);
+  const [intentHash, setIntentHash] = useState('');
+  const [trackedIntents, setTrackedIntents] = useState([]);
+  const [intentResults, setIntentResults] = useState({});
+  const [intentPending, setIntentPending] = useState('');
+  const [intentError, setIntentError] = useState('');
+  const [storageError, setStorageError] = useState('');
   const estimate = useMemo(() => calculateFuturesEstimate({
     margin,
     price,
     leverage,
     side,
     orderType,
-    availableBalance
-  }), [availableBalance, leverage, margin, orderType, price, side]);
-  const tonBalanceUnits = getWalletTokenBalance(walletData, SUPPORTED_TOKENS[0]);
-  const displayedBalance = !wallet
-    ? 'Подключите кошелек'
-    : !isMainnet
-      ? 'Только mainnet'
-      : walletData.loading
-        ? 'Загрузка…'
-        : balanceUnits === null
-          ? 'Нет данных'
-          : `${formatTokenAmount(balanceUnits, COLLATERAL_TOKEN.decimals, 2)} USDT`;
+    availableBalance: null
+  }), [leverage, margin, orderType, price, side]);
 
-  function setMarginPercent(percent) {
-    if (availableBalance === null) return;
-    setMargin(formatEstimate(availableBalance * percent, 6).replace(/\s/g, '').replace(',', '.'));
-  }
-
-  async function connectWallet() {
+  useEffect(() => {
     try {
-      setConnectError('');
-      await tonConnectUI.openModal();
+      setTrackedIntents(loadTrackedStormIntents(window.localStorage));
     } catch (error) {
-      setConnectError(error instanceof Error ? error.message : String(error));
+      setStorageError(error instanceof Error ? error.message : String(error));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!STORM_CONFIG.isTestnet || !STORM_CONFIG.marketsUrl) {
+      setStormMarkets({ loading: false, rows: [], error: '' });
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    setStormMarkets({ loading: true, rows: [], error: '' });
+    fetchStormMarkets(STORM_CONFIG.marketsUrl, { signal: controller.signal })
+      .then((rows) => setStormMarkets({ loading: false, rows, error: '' }))
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        setStormMarkets({
+          loading: false,
+          rows: [],
+          error: error instanceof Error ? error.message : String(error)
+        });
+      });
+    return () => controller.abort();
+  }, [marketsRefresh]);
+
+  async function checkStormIntent(value) {
+    const hash = normalizeStormIntentHash(value);
+    if (!hash) {
+      setIntentError('Введите 64-символьный hex-хэш intent.');
+      return;
+    }
+    if (!STORM_CONFIG.isTestnet || !STORM_CONFIG.apiUrl || intentPending) return;
+
+    try {
+      setTrackedIntents(saveTrackedStormIntent(hash, window.localStorage));
+      setIntentHash(hash);
+      setIntentError('');
+    } catch (error) {
+      setIntentError(error instanceof Error ? error.message : String(error));
+      return;
+    }
+
+    setIntentPending(hash);
+    setIntentResults((current) => ({ ...current, [hash]: { loading: true } }));
+    try {
+      const result = await fetchStormIntent(STORM_CONFIG.apiUrl, hash);
+      setIntentResults((current) => ({ ...current, [hash]: result }));
+    } catch (error) {
+      setIntentResults((current) => ({
+        ...current,
+        [hash]: { error: error instanceof Error ? error.message : String(error) }
+      }));
+    } finally {
+      setIntentPending('');
     }
   }
 
   return (
     <main className="card futures-card">
       <div className="section-heading">
-        <div><small>Калькулятор · без ордеров</small><h2>Futures</h2></div>
-        <span className="chip futures-preview-chip">PREVIEW</span>
+        <div><small>Storm Trade V3 · public reads</small><h2>Futures</h2></div>
+        <span className="chip futures-preview-chip">READ-ONLY</span>
       </div>
 
       <MarketsList activeSymbol={asset} onSelect={(sym) => setAsset(sym)} />
@@ -79,9 +129,98 @@ export default function FuturesPanel({ wallet, walletData, onOpenSwap }) {
       <PriceChart symbol={asset} />
 
       <div className="futures-unavailable" role="status">
-        <strong>Фьючерсный протокол не подключен</strong>
-        <span>Расчеты ниже — предварительная оценка по введенной вручную цене. Ордер не будет отправлен.</span>
+        <strong>{STORM_CONFIG.isTestnet ? 'Тестовая сеть Storm V3' : 'Тестнет Storm V3 не настроен'}</strong>
+        <span>
+          {STORM_CONFIG.isTestnet
+            ? 'Режим testnet задан. Публичные чтения используют только настроенные URL; ордера и подписи отключены. Калькулятор ниже — оценка вручную, баланс основного кошелька не является залогом Storm.'
+            : 'Storm выдает тестовый API и адреса контрактов через builder onboarding. Без точных URL приложение не обращается к сети.'}
+          {' '}Для торговли нужны тестовый Smart Account с залогом и зарегистрированный Ed25519 signer; TonConnect/ton_proof его не заменяют.
+        </span>
+        {MISSING_STORM_CONFIG.length > 0 && (
+          <small>Нужны публичные настройки {MISSING_STORM_CONFIG.join(', ')}. URL и адреса контрактов выдаются Storm через builder onboarding.</small>
+        )}
       </div>
+
+      {STORM_CONFIG.isTestnet && (
+        <section className="storm-readonly-section" aria-live="polite">
+          <div className="storm-section-heading">
+            <h3>Рынки Storm testnet</h3>
+            {STORM_CONFIG.marketsUrl && (
+              <button
+                className="text-button"
+                type="button"
+                disabled={stormMarkets.loading}
+                onClick={() => setMarketsRefresh((value) => value + 1)}
+              >{stormMarkets.loading ? 'Загрузка…' : 'Обновить'}</button>
+            )}
+          </div>
+          {!STORM_CONFIG.marketsUrl && <p className="muted">Укажите VITE_STORM_V3_MARKETS_URL из builder onboarding; адреса mainnet не подставляются.</p>}
+          {stormMarkets.loading && <p className="muted">Загружаем список рынков из Storm…</p>}
+          {stormMarkets.error && <p className="inline-warning" role="alert">Не удалось получить рынки: {stormMarkets.error}</p>}
+          {!stormMarkets.loading && !stormMarkets.error && STORM_CONFIG.marketsUrl && stormMarkets.rows.length === 0 && (
+            <p className="muted">Storm не вернул доступных рынков testnet.</p>
+          )}
+          {stormMarkets.rows.map((market) => (
+            <div className="storm-market-row" key={market.address}>
+              <span><strong>{market.ticker}</strong><small>{market.name}</small></span>
+              <span className="storm-market-state">{market.isPaused ? 'Пауза' : market.isCloseOnly ? 'Только закрытие' : market.status}</span>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {STORM_CONFIG.isTestnet && STORM_CONFIG.apiUrl && (
+        <section className="storm-readonly-section storm-intent-section">
+          <div className="storm-section-heading"><h3>Проверка сохраненного intent</h3></div>
+          <p className="muted">Сначала хэш сохраняется локально, затем запрашивается статус. Кнопка никогда не создает и не повторяет ордер.</p>
+          <form
+            className="storm-intent-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              checkStormIntent(intentHash);
+            }}
+          >
+            <label className="field-label">Intent hash (hex)
+              <input
+                className="full-input"
+                autoComplete="off"
+                spellCheck="false"
+                value={intentHash}
+                onChange={(event) => setIntentHash(event.target.value)}
+                placeholder="64 hex-символа"
+              />
+            </label>
+            <button className="secondary-button" type="submit" disabled={Boolean(intentPending) || Boolean(storageError)}>
+              {intentPending ? 'Проверяем…' : 'Сохранить хэш и проверить'}
+            </button>
+          </form>
+          {storageError && <p className="inline-warning" role="alert">{storageError}</p>}
+          {intentError && <p className="inline-warning" role="alert">{intentError}</p>}
+          {trackedIntents.map((hash) => {
+            const result = intentResults[hash];
+            return (
+              <div className="storm-intent-row" key={hash}>
+                <code>{hash}</code>
+                <button
+                  className="text-button"
+                  type="button"
+                  disabled={Boolean(intentPending)}
+                  onClick={() => checkStormIntent(hash)}
+                >{result?.loading ? 'Проверяем…' : 'Проверить'}</button>
+                {result && !result.loading && (
+                  <p className={result.error || !result.found ? 'inline-warning' : 'muted'} role={result.error ? 'alert' : 'status'}>
+                    {result.error
+                      ? `Статус не получен: ${result.error}`
+                      : !result.found
+                        ? 'Хэш не найден в этом API. Это не доказывает, что запрос не был принят; не создавайте дубликат без проверки истории.'
+                        : `Статус API: ${result.status}. Даже accepted/done не подтверждают fill; сверяйте bundle, транзакции и состояние позиции.`}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </section>
+      )}
 
       <div className="futures-direction" aria-label="Направление позиции">
         <button
@@ -157,43 +296,19 @@ export default function FuturesPanel({ wallet, walletData, onOpenSwap }) {
         />
       </label>
 
-      <div className="futures-field-heading">
-        <label className="field-label futures-field">Маржа (USDT)
-          <input
-            className="full-input"
-            type="text"
-            inputMode="decimal"
-            autoComplete="off"
-            placeholder="0,00"
-            value={margin}
-            onChange={(event) => setMargin(event.target.value)}
-          />
-        </label>
-        <span className="futures-balance">Доступно: {displayedBalance}</span>
-      </div>
-
-      <div className="futures-quick-amounts" aria-label="Быстрый выбор маржи">
-        {[0.25, 0.5].map((percent) => (
-          <button type="button" key={percent} disabled={availableBalance === null} onClick={() => setMarginPercent(percent)}>
-            {percent * 100}%
-          </button>
-        ))}
-        <button type="button" disabled={availableBalance === null} onClick={() => setMarginPercent(1)}>MAX</button>
-      </div>
+      <label className="field-label futures-field">Маржа (USDT)
+        <input
+          className="full-input"
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
+          placeholder="0,00"
+          value={margin}
+          onChange={(event) => setMargin(event.target.value)}
+        />
+      </label>
 
       {estimate.error && <p className="inline-warning futures-validation" role="alert">{estimate.error}</p>}
-      {wallet && !isMainnet && <p className="inline-warning futures-validation">Подключен testnet-кошелек. Балансы mainnet для обеспечения не используются.</p>}
-      {wallet && isMainnet && balanceUnits === null && !walletData.loading && (
-        <p className="inline-warning futures-validation">Не удалось проверить баланс USDT. Проверьте подключение к TonAPI.</p>
-      )}
-      {wallet && isMainnet && !walletData.loading && (
-        tonBalanceUnits === null || BigInt(tonBalanceUnits) === 0n
-      ) && (
-        <p className="inline-warning futures-validation">Баланс TON не получен или равен нулю. Требуемый запас на газ неизвестен, поскольку фьючерсный протокол не подключен.</p>
-      )}
-      {wallet && isMainnet && availableBalance === 0 && (
-        <p className="inline-warning futures-validation">Баланс USDT равен нулю. Минимальный размер ордера не задан и должен поступать от торгового протокола.</p>
-      )}
 
       {!estimate.error && (
         <section className="futures-estimate" aria-live="polite">
@@ -203,18 +318,9 @@ export default function FuturesPanel({ wallet, walletData, onOpenSwap }) {
         </section>
       )}
 
-      {availableBalance === 0 && onOpenSwap && (
-        <button type="button" className="text-button futures-fund-link" onClick={onOpenSwap}>Открыть Spot и обменять токены ↗</button>
-      )}
-
-      {connectError && <p className="inline-warning futures-validation" role="alert">Не удалось открыть TonConnect: {connectError}</p>}
-      {!wallet ? (
-        <button type="button" className="primary-button futures-primary" onClick={connectWallet}>Подключить кошелек</button>
-      ) : (
-        <button type="button" className="primary-button futures-primary" disabled>
-          Фьючерсная торговля недоступна
-        </button>
-      )}
+      <button type="button" className="primary-button futures-primary" disabled>
+        Отправка ордеров отключена
+      </button>
       <p className="fine-print centered futures-disclaimer">
         * Упрощенная арифметическая оценка: без поддерживающей маржи, funding, комиссий, проскальзывания и правил ликвидации. Не является котировкой или обещанием цены исполнения.
       </p>

@@ -233,14 +233,14 @@ export default function App() {
       )}
 
       <div className="network-banner">
-        <strong>{activeTab === 'futures' ? 'PERPS · PREVIEW' : 'STON.FI · MAINNET'}</strong>
+        <strong>{activeTab === 'futures' ? 'PERPS · READ-ONLY' : 'STON.FI · MAINNET'}</strong>
         <span>{activeTab === 'futures'
-          ? 'Калькулятор фьючерсов не подключен к торговому протоколу; заявки не исполняются.'
+          ? 'Storm V3: только публичные данные. Отправка и подписание ордеров отключены.'
           : 'Свапы исполняются on-chain через подключенный TON-кошелек. Каждая транзакция требует подписи.'}</span>
       </div>
-      {wallet && !isMainnet && <div className="inline-warning">{activeTab === 'futures'
-        ? 'Подключен testnet-кошелек. Для отображения доступного USDT используется только mainnet.'
-        : 'Кошелек подключен к testnet. Свапы доступны только через STON.fi в TON mainnet.'}</div>}
+      {wallet && !isMainnet && activeTab !== 'futures' && (
+        <div className="inline-warning">Кошелек подключен к testnet. Свапы доступны только через STON.fi в TON mainnet.</div>
+      )}
       {notice && <div className="notice" role="status"><span>{notice}</span><button type="button" onClick={() => setNotice('')} aria-label="Закрыть">×</button></div>}
 
       <nav className="tabs" data-tab={activeTab} aria-label="Разделы">
@@ -263,11 +263,7 @@ export default function App() {
       {activeTab === 'pools' && <PoolPanel />}
 
       {activeTab === 'futures' && (
-        <FuturesPanel
-          wallet={wallet}
-          walletData={walletData}
-          onOpenSwap={() => openTab('swap')}
-        />
+        <FuturesPanel />
       )}
 
       {activeTab === 'wallet' && (

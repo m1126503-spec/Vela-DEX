@@ -927,6 +927,104 @@
   line-height: 1.5;
 }
 
+.futures-unavailable small {
+  color: var(--color-muted);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.storm-readonly-section {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.storm-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.storm-section-heading h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.storm-market-row,
+.storm-intent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-line);
+}
+
+.storm-market-row > span:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.storm-market-row strong,
+.storm-market-state {
+  color: var(--color-fg);
+  font-size: 12px;
+}
+
+.storm-market-row small {
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+}
+
+.storm-market-state {
+  flex: 0 0 auto;
+  color: var(--color-muted);
+  text-align: right;
+}
+
+.storm-intent-form {
+  display: grid;
+  gap: 8px;
+}
+
+.storm-intent-form .field-label {
+  margin: 0;
+}
+
+.storm-intent-form .secondary-button {
+  min-height: 44px;
+  margin-top: 0;
+  font-size: 13px;
+}
+
+.storm-intent-row {
+  flex-wrap: wrap;
+}
+
+.storm-intent-row code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.storm-intent-row p {
+  flex: 1 0 100%;
+  margin: 0;
+}
+
 .futures-direction,
 .futures-order-types,
 .mode-switch {
