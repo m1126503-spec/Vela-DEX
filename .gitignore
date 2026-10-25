@@ -5,3 +5,6 @@ dist/
 !.env.example
 *.local
 npm-debug.log*
+**/.venv/
+**/__pycache__/
+*.py[cod]
