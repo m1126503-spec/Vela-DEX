@@ -7,7 +7,8 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "test": "node --test"
+    "test": "node --test",
+    "storm:vault-check": "node scripts/storm-vault-check.js"
   },
   "dependencies": {
     "@ston-fi/api": "^0.32.0",

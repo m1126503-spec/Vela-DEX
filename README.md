@@ -32,3 +32,15 @@ The token picker is intentionally restricted to the canonical TON, USDT, and NOT
 The Futures tab includes a non-executable calculator plus optional read-only Storm Trade V3 testnet market and intent lookups. To enable those reads, set `VITE_STORM_V3_NETWORK=testnet`, `VITE_STORM_V3_API_URL`, and `VITE_STORM_V3_MARKETS_URL` to the public testnet endpoints provided through Storm builder onboarding. Mainnet URLs are rejected, redirects are disabled, and saved intent hashes are kept locally before status checks. Do not treat `accepted`/`done` as a fill; verify bundles, transactions, and position state.
 
 Order submission is intentionally disabled. Storm V3 requires a funded testnet Smart Account and a registered Ed25519 signing key; TonConnect wallet signatures and `ton_proof` cannot sign intents. This app does not create or store signing keys. The calculator still uses a user-entered reference price and does not provide a Storm quote, verified Smart Account collateral, minimum-order rules, fee estimates, or execution. Its position and adverse-move figures are simplified and omit venue-specific margin, funding, slippage, and liquidation rules.
+
+### Vault Transit signer adapter (backend only)
+
+`server/stormVaultSigner.js` is a server-side adapter for a Vault Transit Ed25519 key. It reads the configured public key version, pins signatures to that version, sends the exact 32-byte Storm hash as base64 with `prehashed: false`, requires a 64-byte Vault signature, and verifies it locally as a pure Ed25519 signature before returning it. The helper is not imported by the browser and does not expose a public signing endpoint. The order flow remains disabled: do not expose this helper to arbitrary client-supplied hashes or wire it to order submission until authentication, request validation, durable query-ID/hash storage, Storm testnet onboarding and end-to-end checks are in place.
+
+Create a non-exportable test key in Vault and grant the application token only `read` on that key and `update` on its `transit/sign` path. Never use a root token:
+
+```sh
+vault write -f transit/keys/vela-storm-signer type=ed25519 exportable=false allow_plaintext_backup=false deletion_allowed=false
+```
+
+Set `VAULT_ADDR`, `VAULT_TOKEN`, and `VAULT_TRANSIT_KEY=vela-storm-signer` only in the backend/service environment; optionally set `VAULT_TRANSIT_MOUNT` when Transit is mounted somewhere other than `transit`. Run `npm run storm:vault-check` to sign a fixed compatibility-test hash and verify it against Vault's public key. Before any order signer is wired, register the printed public key with Storm and set `VAULT_TRANSIT_KEY_VERSION` to the printed version so automatic Vault key rotation cannot silently switch the signer. Keep the Vault token out of all `VITE_*` variables and browser storage. The compatibility check was not run against a real Vault instance here; it must pass with the actual test Vault key before enabling orders. Use a Storm-provided testnet endpoint and Smart Account only; no mainnet order route is implemented.
