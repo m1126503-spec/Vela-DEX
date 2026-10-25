@@ -61,13 +61,24 @@ async function ensureTestnetChain(provider) {
     });
   } catch (error) {
     if (error?.code !== 4902) throw error;
+    const rpcResponse = await fetch('/api/chainstack-rpc', { cache: 'no-store' });
+    if (!rpcResponse.ok) {
+      throw new Error('Не удалось проверить настроенную Chainstack-ноду.');
+    }
+    const rpcConfig = await rpcResponse.json();
+    if (rpcConfig?.configured && !rpcConfig.compatible) {
+      throw new Error('Chainstack-нода не подтверждена как Arbitrum Sepolia (chain ID 421614); переключение остановлено.');
+    }
+    const rpcUrl = rpcConfig?.compatible
+      ? `${window.location.origin}/api/chainstack-rpc`
+      : TESTNET_RPC;
     await provider.request({
       method: 'wallet_addEthereumChain',
       params: [{
         chainId: HYPERLIQUID_TESTNET_CHAIN_ID,
         chainName: 'Arbitrum Sepolia',
         nativeCurrency: { name: 'Sepolia Ether', symbol: 'ETH', decimals: 18 },
-        rpcUrls: [TESTNET_RPC],
+        rpcUrls: [rpcUrl],
         blockExplorerUrls: [TESTNET_EXPLORER]
       }]
     });
